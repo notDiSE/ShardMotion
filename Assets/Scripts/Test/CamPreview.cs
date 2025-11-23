@@ -138,8 +138,10 @@ public class CamPreview : EditorWindow
     {
         var cam = sceneCamera ? sceneCamera : Camera.main;
         if (cam == null) return;
+        foreach (var t in ArUcoRegistry.All) t.tracked = false;
+        
         if (ids == null || rvecs == null || tvecs == null) return;
-
+        
         for (int i = 0; i < ids.Length; i++)
         {
             int id = ids[i];
@@ -152,6 +154,7 @@ public class CamPreview : EditorWindow
                 filters[id] = f;
             }
             var p = f.Update(raw);
+            target.tracked = true;
             target.ApplyPose(p.position, p.rotation);
         }
     }

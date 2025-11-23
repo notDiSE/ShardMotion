@@ -4,6 +4,7 @@ using UnityEngine;
 public static class ArUcoRegistry
 {
     static readonly Dictionary<int, ArUcoTarget> map = new();
+    public static IEnumerable<ArUcoTarget> All => map.Values;
 
     public static void Register(ArUcoTarget t)
     {
