@@ -4,11 +4,16 @@ using System.Collections.Generic;
 using OpenCvSharp.Aruco;
 using UnityEditor;
 using UnityEngine;
+using UnityEngine.Playables;
+using UnityEngine.Animations;
 
 public class Record : MonoBehaviour
 {
     [HideInInspector]
     public bool recording;
+    
+    [HideInInspector]
+    public bool playback;
 
     private Coroutine _routine;
 
@@ -17,7 +22,52 @@ public class Record : MonoBehaviour
     string assetPath = "Assets/tmp.anim";
 
     private AnimationClip _clip;
+    private Animator _animator;
     
+    PlayableGraph _graph;
+    AnimationClipPlayable _playable;
+
+
+    private void Start()
+    {
+        _animator = GetComponent<Animator>();
+    }
+
+    public void PlayRecording()
+    {
+        if (_clip == null) return;
+        
+        playback = true;
+        
+        if (_graph.IsValid())
+            _graph.Destroy();
+
+        _animator.enabled = true;
+
+        _graph = PlayableGraph.Create("RecordedClip");
+        _graph.SetTimeUpdateMode(DirectorUpdateMode.GameTime);
+
+        var output = AnimationPlayableOutput.Create(_graph, "AnimOutput", _animator);
+        _playable = AnimationClipPlayable.Create(_graph, _clip);
+        _playable.SetApplyFootIK(false);
+        _playable.SetApplyPlayableIK(false);
+
+        output.SetSourcePlayable(_playable);
+
+        _graph.Play();
+    }
+
+    public void StopPlayingRecording()
+    {
+        playback = false;
+        if (_graph.IsValid())
+        {
+            _graph.Destroy();
+        }
+
+        _animator.enabled = false;
+    }
+
     public void CreateTempClip()
     {
         if (AssetDatabase.LoadAssetAtPath<AnimationClip>(assetPath) != null) AssetDatabase.DeleteAsset(assetPath);
@@ -53,9 +103,7 @@ public class Record : MonoBehaviour
         foreach (ArUcoTarget target in  ArUcoRegistry.All)
         {
             if(!target.tracked) continue;
-            var lp = target.transform.localPosition;
-            var le = target.transform.localEulerAngles;
-            WriteAnim.AddKey(_clip, transform, target.transform, lp, le, _time);
+            WriteAnim.AddKey(_clip, transform, target.transform, target.transform.localPosition, target.transform.localRotation, _time);
         }
         EditorUtility.SetDirty(_clip);
     }
@@ -65,6 +113,12 @@ public class Record : MonoBehaviour
         recording = false;
         if (_routine != null) StopCoroutine(_routine);
         AssetDatabase.SaveAssets();
+    }
+    
+    private void OnDisable()
+    {
+        if (_graph.IsValid())
+            _graph.Destroy();
     }
 }
 
@@ -87,6 +141,16 @@ public class RecordEditor : Editor
             {
                 targetScript.StartRecording();
             }
+
+            if (!targetScript.playback)
+            {
+                if(GUILayout.Button("Playback")) targetScript.PlayRecording();
+            }
+            else
+            {
+                if(GUILayout.Button("Stop Playback")) targetScript.StopPlayingRecording();
+            }
+            
         }
         else
         {

@@ -42,7 +42,7 @@ public class TestWriteToAnim : MonoBehaviour
         var lp = target.localPosition;
         var le = target.localEulerAngles;
         Debug.Log(lp.x + ", " + le.x + ", " + le.y);
-        WriteAnim.AddKey(clip, root, target, lp, le, time);
+        //WriteAnim.AddKey(clip, root, target, lp, le, time);
         AssetDatabase.SaveAssets();
     }
 

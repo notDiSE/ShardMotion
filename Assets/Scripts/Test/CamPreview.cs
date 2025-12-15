@@ -55,6 +55,8 @@ public class CamPreview : EditorWindow
     {
         StopTracking();
         cap = new VideoCapture(camIdx[sel]);
+        cap.Set(VideoCaptureProperties.Exposure, -6);
+        cap.Set(VideoCaptureProperties.Fps, 60);
         int w = (int)(cap?.FrameWidth ?? 640);
         int h = (int)(cap?.FrameHeight ?? 480);
         tex = new Texture2D(w, h, TextureFormat.RGBA32, false);
@@ -95,8 +97,31 @@ public class CamPreview : EditorWindow
 
     void DetectAndEstimate()
     {
-        var dict = CvAruco.GetPredefinedDictionary(PredefinedDictionaryName.Dict6X6_250);
-        var parameters = new DetectorParameters();
+        var dict = CvAruco.GetPredefinedDictionary(PredefinedDictionaryName.Dict4X4_50);
+        var parameters = new DetectorParameters
+        {
+            AdaptiveThreshWinSizeMin = 3,
+            AdaptiveThreshWinSizeMax = 23,
+            AdaptiveThreshWinSizeStep = 10,
+            AdaptiveThreshConstant = 7,
+
+            MinMarkerPerimeterRate = 0.03,
+            MaxMarkerPerimeterRate = 4.0,
+
+            PolygonalApproxAccuracyRate = 0.05,
+
+            CornerRefinementMethod = CornerRefineMethod.Subpix,
+            CornerRefinementWinSize = 5,
+            CornerRefinementMaxIterations = 30,
+            CornerRefinementMinAccuracy = 0.01,
+
+            MinCornerDistanceRate = 0.05,
+            MinDistanceToBorder = 3,
+
+            PerspectiveRemoveIgnoredMarginPerCell = 0.13,
+            PerspectiveRemovePixelPerCell = 8
+        };
+        
         CvAruco.DetectMarkers(frame, dict, out corners, out ids, parameters, out _);
         if (ids == null || ids.Length == 0) { rvecs = null; tvecs = null; return; }
 
