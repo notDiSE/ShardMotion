@@ -1,12 +1,86 @@
 using UnityEngine;
-
+public enum MarkerAxis
+{
+    X_POS,
+    X_NEG,
+    Y_POS,
+    Y_NEG,
+    Z_POS,
+    Z_NEG
+}
+    
 public class ArUcoTarget : MonoBehaviour
 {
     public bool tracked = false;
     public int markerId;
+    public MarkerAxis forwardAxis = MarkerAxis.Z_POS;
+    public Vector3 positionOffset;
+    
+    public float gizmoMarkerSize = 0.08f;
+    public float gizmoArrowLength = 0.12f;
+    public Color gizmoColor = new Color(1f, 0.2f, 0.2f, 1f);
+    
+    public static Quaternion ToForwardRotation(MarkerAxis axis)
+    {
+        return axis switch
+        {
+            MarkerAxis.Z_POS => Quaternion.identity,
+            MarkerAxis.Z_NEG => Quaternion.Euler(0, 180, 0),
 
+            MarkerAxis.X_POS => Quaternion.Euler(0, -90, 0),
+            MarkerAxis.X_NEG => Quaternion.Euler(0, 90, 0),
+
+            MarkerAxis.Y_POS => Quaternion.Euler(90, 0, 0),
+            MarkerAxis.Y_NEG => Quaternion.Euler(-90, 0, 0),
+
+            _ => Quaternion.identity
+        };
+    }
+    
     void OnEnable() => ArUcoRegistry.Register(this);
     void OnDisable() => ArUcoRegistry.Unregister(this);
 
-    public void ApplyPose(Vector3 pos, Quaternion rot) => transform.SetPositionAndRotation(pos, rot);
+    public void ApplyPose(Vector3 pos, Quaternion rot)
+    {
+        var correctedRot = rot * ToForwardRotation(forwardAxis);
+        var correctedPos = pos + correctedRot * positionOffset;
+
+        transform.SetPositionAndRotation(correctedPos, correctedRot);
+    }
+    
+#if UNITY_EDITOR
+    void OnDrawGizmosSelected()
+    {
+        var rot = transform.localRotation * ToForwardRotation(forwardAxis);
+        var pos = transform.localPosition - rot * positionOffset;
+
+        var half = gizmoMarkerSize * 0.5f;
+
+        var r = rot * Vector3.right;
+        var u = rot * Vector3.up;
+        var f = rot * Vector3.forward;
+
+        var p0 = pos + (-r - u) * half;
+        var p1 = pos + ( r - u) * half;
+        var p2 = pos + ( r + u) * half;
+        var p3 = pos + (-r + u) * half;
+
+        UnityEditor.Handles.color = Application.isPlaying  ? (tracked ? gizmoColor : Color.grey)  : gizmoColor;
+        UnityEditor.Handles.DrawAAPolyLine(3f, p0, p1, p2, p3, p0);
+
+        UnityEditor.Handles.ArrowHandleCap(
+            0,
+            pos,
+            Quaternion.LookRotation(f, u),
+            gizmoArrowLength,
+            EventType.Repaint
+        );
+
+        UnityEditor.Handles.Label(
+            pos + u * (gizmoMarkerSize * 0.6f),
+            $"ID: {markerId}"
+        );
+    }
+#endif
+    
 }

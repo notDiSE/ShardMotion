@@ -167,6 +167,8 @@ public class CamPreview : EditorWindow
         
         if (ids == null || rvecs == null || tvecs == null) return;
         
+        Dictionary<Transform, TrackingRecord> records = new Dictionary<Transform, TrackingRecord>();
+        
         for (int i = 0; i < ids.Length; i++)
         {
             int id = ids[i];
@@ -180,7 +182,48 @@ public class CamPreview : EditorWindow
             }
             var p = f.Update(raw);
             target.tracked = true;
-            target.ApplyPose(p.position, p.rotation);
+            
+            float dot = Vector3.Dot(p.rotation * Vector3.forward, (cam.transform.position - p.position).normalized);
+            if (records.TryGetValue(target.transform, out var record))
+            {
+                if (record.Dot < dot)
+                {
+                    record.Target = target;
+                    record.Pos = p.position;
+                    record.Rot = p.rotation;
+                    record.Dot = dot;
+                }
+            }
+            else
+            {
+                TrackingRecord newRecord = new TrackingRecord();
+                newRecord.Target = target;
+                newRecord.Pos = p.position;
+                newRecord.Rot = p.rotation;
+                newRecord.Dot = dot;
+                records.Add(target.transform, newRecord);
+            }
+            
+            //target.ApplyPose(p.position, p.rotation);
+        }
+
+        foreach (KeyValuePair<Transform,TrackingRecord> pair in records)
+        {
+            Debug.Log($"best marker for gameobject: {pair.Key.gameObject.name} is: {pair.Value.Target.markerId}");
+            pair.Value.Apply();
+        }
+    }
+
+    class TrackingRecord
+    {
+        public ArUcoTarget Target;
+        public Vector3 Pos;
+        public Quaternion Rot;
+        public float Dot;
+
+        public void Apply()
+        {
+            Target.ApplyPose(Pos,Rot);
         }
     }
 

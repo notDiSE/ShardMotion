@@ -10,7 +10,6 @@ public static class ArUcoRegistry
     {
         if (!t) return;
         map[t.markerId] = t;
-        Debug.Log($"Registered marker {t.markerId} on {t.name}");
     }
 
     public static void Unregister(ArUcoTarget t)
