@@ -6,6 +6,7 @@ using System.Collections.Generic;
 
 public class CamPreview : EditorWindow
 {
+    /*
     Texture2D tex;
     VideoCapture cap;
     Mat frame = new();
@@ -305,4 +306,5 @@ public class CamPreview : EditorWindow
         if (tex)
             GUI.DrawTexture(new UnityEngine.Rect(0, 220, position.width, position.height - 220), tex, ScaleMode.ScaleToFit);
     }
+    */
 }

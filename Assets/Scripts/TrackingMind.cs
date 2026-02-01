@@ -5,8 +5,10 @@ using UnityEngine;
 
 public static class TrackingMind
 {
+    
     static HashSet<TrackingCamera> cameras = new HashSet<TrackingCamera>();
     static List<TrackingCamera.TrackingRecord> commitedRecords = new List<TrackingCamera.TrackingRecord>();
+    static HashSet<TrackingCamera> committedCameras = new HashSet<TrackingCamera>();
     static int commited = 0;
 
     public static void Register(TrackingCamera cam)
@@ -19,14 +21,31 @@ public static class TrackingMind
         cameras.Remove(cam);
     }
 
-    public static void Commit(List<TrackingCamera.TrackingRecord> records)
+    public static void Commit(TrackingCamera cam, List<TrackingCamera.TrackingRecord> records)
     {
-        commitedRecords.AddRange(records);
+        if (!committedCameras.Add(cam))
+            return;
+
+        if(records != null) commitedRecords.AddRange(records);
         commited++;
+        
+        
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine($"Commited {commited}/{cameras.Count}");
+    
+        for (int i = 0; i < records.Count; i++)
+        {
+            sb.AppendLine($"[{i}] Target: {records[i].Target}");
+            sb.AppendLine($"[{i}] Dot: {records[i].Dot}");
+        }
+
+        Debug.Log(sb.ToString());
+        
         if (commited>=cameras.Count)
         {
             Evaluate();
         }
+        
     }
     
     static void Evaluate()
@@ -51,5 +70,7 @@ public static class TrackingMind
         
         commited = 0;
         commitedRecords.Clear();
+        committedCameras.Clear();
     }
+    
 }

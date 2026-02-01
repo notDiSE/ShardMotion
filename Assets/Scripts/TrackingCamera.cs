@@ -1,250 +1,41 @@
+using System.Collections;
 using UnityEngine;
-using UnityEditor;
 using OpenCvSharp;
 using OpenCvSharp.Aruco;
 using System.Collections.Generic;
 using System.Linq;
 
-[ExecuteAlways]
+#if UNITY_EDITOR
+using UnityEditor;
+#endif
+
 public class TrackingCamera : MonoBehaviour
 {
-    public Texture2D tex;
-    VideoCapture cap;
-    Mat frame = new();
-
-    readonly List<int> camIdx = new();
-    readonly List<string> camNames = new();
-    public int sel;
-
+    [Header("Webcam Settings")]
+    public int sel; 
     public bool isTracking;
-    public Camera sceneCamera;
+    private WebCamTexture webCamTexture;
+    private Color32[] pixelData;
+    public Texture2D tex; 
+
+    [Header("ArUco Settings")]
     public float tagSizeMeters = 0.05f;
     public bool drawAxes = true;
     public bool drawBoxes = true;
 
-    public float alphaPos = 0.25f;
-    public float alphaRot = 0.25f;
-    public int delayFrames = 0;
+    [Header("Smoothing")]
+    [Range(0.01f, 1f)] public float alphaPos = 0.25f;
+    [Range(0.01f, 1f)] public float alphaRot = 0.25f;
 
-    readonly Dictionary<int, PoseFilter> filters = new();
+    private Mat frame = new Mat();
+    private readonly Dictionary<int, PoseFilter> filters = new Dictionary<int, PoseFilter>();
+    private List<string> camNames = new List<string>();
 
-    Point2f[][] corners;
-    int[] ids;
-    Vec3d[] rvecs, tvecs;
-
-    void OnEnable()
-    {
-        ScanCams();
-        TrackingMind.Register(this);
-    }
-
-    void OnDisable()
-    {
-        StopTracking();
-        frame.Dispose();
-        TrackingMind.Unregister(this);
-    }
-
-    public void ScanCams()
-    {
-        camIdx.Clear();
-        camNames.Clear();
-
-        for (int i = 0; i < 10; i++)
-        {
-            using var t = new VideoCapture(i);
-            if (t.IsOpened())
-            {
-                camIdx.Add(i);
-                camNames.Add($"Camera {i}");
-            }
-        }
-
-        if (camIdx.Count == 0)
-        {
-            camIdx.Add(0);
-            camNames.Add("Camera 0");
-        }
-
-        sel = Mathf.Clamp(sel, 0, camIdx.Count - 1);
-    }
-
-    public IReadOnlyList<string> CameraNames => camNames;
-
-    public void StartTracking()
-    {
-        StopTracking();
-
-        cap = new VideoCapture(camIdx[sel]);
-        cap.Set(VideoCaptureProperties.Exposure, -6);
-        cap.Set(VideoCaptureProperties.Fps, 60);
-
-        int w = (int)(cap?.FrameWidth ?? 640);
-        int h = (int)(cap?.FrameHeight ?? 480);
-        tex = new Texture2D(w, h, TextureFormat.RGBA32, false);
-
-        isTracking = true;
-        EditorApplication.update += Tick;
-    }
-
-    public void StopTracking()
-    {
-        isTracking = false;
-        EditorApplication.update -= Tick;
-        cap?.Release();
-        cap = null;
-    }
-
-    void Tick()
-    {
-        if (!isTracking || cap == null) return;
-        if (!cap.Read(frame) || frame.Empty()) return;
-
-        DetectAndEstimate();
-        UpdateTargets();
-        UpdateTexture();
-    }
-
-    Mat CamK()
-    {
-        var k = new Mat(3, 3, MatType.CV_64F, Scalar.All(0));
-        k.Set(0, 0, (double)cap.FrameWidth);
-        k.Set(1, 1, (double)cap.FrameWidth);
-        k.Set(0, 2, (double)cap.FrameWidth * 0.5);
-        k.Set(1, 2, (double)cap.FrameHeight * 0.5);
-        k.Set(2, 2, 1.0);
-        return k;
-    }
-
-    Mat Dist() => new Mat(1, 5, MatType.CV_64F, 0);
-
-    void DetectAndEstimate()
-    {
-        var dict = CvAruco.GetPredefinedDictionary(PredefinedDictionaryName.Dict4X4_50);
-
-        var parameters = new DetectorParameters
-        {
-            AdaptiveThreshWinSizeMin = 3,
-            AdaptiveThreshWinSizeMax = 23,
-            AdaptiveThreshWinSizeStep = 10,
-            AdaptiveThreshConstant = 7,
-
-            MinMarkerPerimeterRate = 0.03,
-            MaxMarkerPerimeterRate = 4.0,
-            PolygonalApproxAccuracyRate = 0.05,
-
-            CornerRefinementMethod = CornerRefineMethod.Subpix,
-            CornerRefinementWinSize = 5,
-            CornerRefinementMaxIterations = 30,
-            CornerRefinementMinAccuracy = 0.01,
-
-            MinCornerDistanceRate = 0.05,
-            MinDistanceToBorder = 3,
-
-            PerspectiveRemoveIgnoredMarginPerCell = 0.13,
-            PerspectiveRemovePixelPerCell = 8
-        };
-
-        CvAruco.DetectMarkers(frame, dict, out corners, out ids, parameters, out _);
-        if (ids == null || ids.Length == 0)
-        {
-            rvecs = null;
-            tvecs = null;
-            return;
-        }
-
-        using var gray = frame.CvtColor(ColorConversionCodes.BGR2GRAY);
-        var win = new OpenCvSharp.Size(5, 5);
-        var zero = new OpenCvSharp.Size(-1, -1);
-        var term = new TermCriteria(CriteriaTypes.Eps | CriteriaTypes.MaxIter, 30, 0.01);
-
-        for (int i = 0; i < corners.Length; i++)
-            Cv2.CornerSubPix(gray, corners[i], win, zero, term);
-
-        var K = CamK();
-        var D = Dist();
-
-        CvAruco.DrawDetectedMarkers(frame, corners, ids);
-
-        using var rM = new Mat();
-        using var tM = new Mat();
-        CvAruco.EstimatePoseSingleMarkers(corners, tagSizeMeters, K, D, rM, tM);
-
-        int n = rM.Rows;
-        rvecs = new Vec3d[n];
-        tvecs = new Vec3d[n];
-
-        for (int i = 0; i < n; i++)
-        {
-            rvecs[i] = rM.Get<Vec3d>(i);
-            tvecs[i] = tM.Get<Vec3d>(i);
-        }
-
-        if (drawAxes)
-            for (int i = 0; i < ids.Length; i++)
-                Cv2.DrawFrameAxes(frame, K, D,
-                    InputArray.Create(rvecs[i]),
-                    InputArray.Create(tvecs[i]),
-                    tagSizeMeters * 0.5f, 2);
-
-        if (drawBoxes)
-            for (int i = 0; i < ids.Length; i++)
-                Cv2.Polylines(frame,
-                    new[] { System.Array.ConvertAll(corners[i], p => (Point)p) },
-                    true, Scalar.LimeGreen, 2);
-    }
-
-    void UpdateTargets()
-    {
-        foreach (var t in ArUcoRegistry.All)
-            t.tracked = false;
-
-        if (ids == null || rvecs == null || tvecs == null) return;
-
-        Dictionary<Transform, TrackingRecord> records = new();
-
-        for (int i = 0; i < ids.Length; i++)
-        {
-            int id = ids[i];
-            if (!ArUcoRegistry.TryGet(id, out var target)) continue;
-
-            var raw = PoseFromOpenCv(transform, rvecs[i], tvecs[i]);
-
-            if (!filters.TryGetValue(id, out var f))
-                filters[id] = f = new PoseFilter(alphaPos, alphaRot, delayFrames);
-
-            var p = f.Update(raw);
-            target.tracked = true;
-
-            float dot = Vector3.Dot(
-                p.rotation * Vector3.forward,
-                (transform.position - p.position).normalized
-            );
-
-            if (!records.TryGetValue(target.transform, out var record))
-            {
-                record = new TrackingRecord();
-                records[target.transform] = record;
-            }
-
-            if (record.Target == null || record.Dot < dot)
-            {
-                record.Target = target;
-                record.Pos = p.position;
-                record.Rot = p.rotation;
-                record.Dot = dot;
-            }
-        }
-
-        TrackingMind.Commit(records.Values.ToList());
-        
-        /*
-        foreach (var pair in records)
-        {
-            pair.Value.Apply();
-        }
-        */
-    }
+    private DetectorParameters detectorParams;
+    private Dictionary dictionary;
+    private Coroutine tickRoutine;
+    
+    //public int 
 
     public class TrackingRecord
     {
@@ -259,7 +50,178 @@ public class TrackingCamera : MonoBehaviour
         }
     }
 
-    static Pose PoseFromOpenCv(Transform camTf, Vec3d rvec, Vec3d tvec)
+    void OnEnable()
+    {
+        ScanCams();
+        detectorParams = new DetectorParameters();
+        dictionary = CvAruco.GetPredefinedDictionary(PredefinedDictionaryName.Dict4X4_50);
+        TrackingMind.Register(this);
+    }
+
+    void OnDisable()
+    {
+        StopTracking();
+        if (frame != null && !frame.IsDisposed) frame.Dispose();
+        TrackingMind.Unregister(this);
+    }
+
+    public void ScanCams()
+    {
+        camNames.Clear();
+        foreach (var device in WebCamTexture.devices)
+            camNames.Add(device.name);
+        
+        if (camNames.Count == 0) camNames.Add("No Camera Found");
+        sel = Mathf.Clamp(sel, 0, Mathf.Max(0, camNames.Count - 1));
+    }
+
+    public IReadOnlyList<string> CameraNames => camNames;
+
+    public void StartTracking()
+    {
+        StopTracking();
+        if (WebCamTexture.devices.Length == 0) return;
+
+        webCamTexture = new WebCamTexture(WebCamTexture.devices[sel].name, 640, 480, 60);
+        webCamTexture.Play();
+        isTracking = true;
+        tickRoutine = StartCoroutine(RunTick());
+    }
+
+    public void StopTracking()
+    {
+        isTracking = false;
+        if(tickRoutine != null) StopCoroutine(tickRoutine);
+        if (webCamTexture != null)
+        {
+            webCamTexture.Stop();
+            webCamTexture = null;
+        }
+    }
+
+    void Update()
+    {
+        Tick();
+    }
+
+    IEnumerator RunTick()
+    {
+        var wait = new WaitForSeconds(1f / 60f);
+        while (true)
+        {
+            //Tick();
+            yield return wait;
+        }
+    }
+    
+    void Tick()
+    {
+        if (!isTracking || webCamTexture == null || !webCamTexture.didUpdateThisFrame) return;
+        
+        if (tex == null || tex.width != webCamTexture.width)
+        {
+            tex = new Texture2D(webCamTexture.width, webCamTexture.height, TextureFormat.RGBA32, false);
+            pixelData = new Color32[webCamTexture.width * webCamTexture.height];
+        }
+        
+        ProcessFrame();
+        DetectAndEstimate();
+        UpdatePreviewTexture();
+    }
+
+    void ProcessFrame()
+    {
+        webCamTexture.GetPixels32(pixelData);
+        using (Mat tempRGBA = new Mat(webCamTexture.height, webCamTexture.width, MatType.CV_8UC4, pixelData))
+        {
+            Cv2.CvtColor(tempRGBA, frame, ColorConversionCodes.RGBA2BGR);
+            Cv2.Flip(frame, frame, FlipMode.X); 
+        }
+    }
+
+    void DetectAndEstimate()
+    {
+        Point2f[][] corners;
+        int[] ids;
+        
+        CvAruco.DetectMarkers(frame, dictionary, out corners, out ids, detectorParams, out _);
+        
+        foreach (var t in ArUcoRegistry.All) t.tracked = false;
+
+        if (ids == null || ids.Length == 0) return;
+        
+        using Mat k = new Mat(3, 3, MatType.CV_64F, new double[] {
+            webCamTexture.width, 0, webCamTexture.width / 2.0,
+            0, webCamTexture.width, webCamTexture.height / 2.0,
+            0, 0, 1
+        });
+
+        using Mat d = new Mat(1, 5, MatType.CV_64F, 0);
+        using Mat rvecs = new Mat();
+        using Mat tvecs = new Mat(); 
+
+        CvAruco.EstimatePoseSingleMarkers(corners, tagSizeMeters, k, d, rvecs, tvecs);
+
+        if (drawBoxes) CvAruco.DrawDetectedMarkers(frame, corners, ids);
+        
+        Dictionary<Transform, TrackingRecord> localRecords = new Dictionary<Transform, TrackingRecord>();
+
+        for (int i = 0; i < ids.Length; i++)
+        {
+            Vec3d rvecV3 = rvecs.Get<Vec3d>(i);
+            Vec3d tvecV3 = tvecs.Get<Vec3d>(i);
+            
+            using (Mat rvecMat = new Mat(rvecs, new OpenCvSharp.Range(i, i + 1), OpenCvSharp.Range.All))
+            using (Mat tvecMat = new Mat(tvecs, new OpenCvSharp.Range(i, i + 1), OpenCvSharp.Range.All))
+            {
+                if (drawAxes) 
+                    Cv2.DrawFrameAxes(frame, k, d, rvecMat, tvecMat, tagSizeMeters * 0.5f);
+            }
+            
+            int id = ids[i];
+            if (ArUcoRegistry.TryGet(id, out var target))
+            {
+                var p = PoseFromOpenCv(transform.localToWorldMatrix, rvecV3, tvecV3);
+                
+                if (!filters.ContainsKey(id)) filters[id] = new PoseFilter(alphaPos, alphaRot);
+                p = filters[id].Update(p);
+
+                target.tracked = true;
+                
+                float dot = Vector3.Dot(p.rotation * Vector3.forward, (transform.position - p.position).normalized);
+
+                if (!localRecords.ContainsKey(target.transform))
+                    localRecords[target.transform] = new TrackingRecord();
+
+                if (localRecords[target.transform].Target == null || localRecords[target.transform].Dot < dot)
+                {
+                    localRecords[target.transform].Target = target;
+                    localRecords[target.transform].Pos = p.position;
+                    localRecords[target.transform].Rot = p.rotation;
+                    localRecords[target.transform].Dot = dot;
+                }
+            }
+        }
+        
+        TrackingMind.Commit(this, localRecords.Values.ToList());
+    }
+    
+
+    void UpdateTargetPose(int id, Mat rvec, Mat tvec)
+    {
+        if (!ArUcoRegistry.TryGet(id, out var target)) return;
+        
+        var pose = PoseFromOpenCv(transform, rvec, tvec);
+
+        if (!filters.TryGetValue(id, out var f))
+            filters[id] = f = new PoseFilter(alphaPos, alphaRot);
+
+        var smoothed = f.Update(pose);
+        target.ApplyPose(smoothed.position, smoothed.rotation);
+    }
+    
+    
+    static Pose PoseFromOpenCv(Matrix4x4 camLocalToWorld, Vec3d rvec, Vec3d tvec)
     {
         using var r = new Mat(3, 1, MatType.CV_64F);
         r.Set(0, 0, rvec.Item0);
@@ -277,11 +239,11 @@ public class TrackingCamera : MonoBehaviour
         var tUnity = S.MultiplyPoint3x4(tCv);
 
         var local = Matrix4x4.TRS(tUnity, QuaternionFromMatrix(Ru), Vector3.one);
-        var world = camTf.localToWorldMatrix * local;
+        var world = camLocalToWorld * local;
 
         return new Pose(world.GetColumn(3), QuaternionFromMatrix(world));
     }
-
+    
     static Matrix4x4 MatToMatrix4x4(Mat m)
     {
         var M = Matrix4x4.identity;
@@ -300,115 +262,74 @@ public class TrackingCamera : MonoBehaviour
     static Quaternion QuaternionFromMatrix(Matrix4x4 m)
         => Quaternion.LookRotation(m.GetColumn(2), m.GetColumn(1));
 
-    void UpdateTexture()
+    static Pose PoseFromOpenCv(Transform camTf, Mat rvec, Mat tvec)
     {
-        using var rgba = frame.CvtColor(ColorConversionCodes.BGR2RGBA);
-        Cv2.Flip(rgba, rgba, FlipMode.X);
-        tex.LoadRawTextureData(rgba.Data, rgba.Rows * rgba.Cols * 4);
+        using Mat rm = new Mat();
+        Cv2.Rodrigues(rvec, rm);
+
+        Matrix4x4 m = Matrix4x4.identity;
+        for (int r = 0; r < 3; r++)
+            for (int c = 0; c < 3; c++)
+                m[r, c] = (float)rm.At<double>(r, c);
+        
+        Matrix4x4 changeBasis = Matrix4x4.Scale(new UnityEngine.Vector3(1, -1, 1));
+        m = changeBasis * m * changeBasis;
+        
+        Vector3 pos = new Vector3(
+            (float)tvec.At<double>(0, 0), 
+            -(float)tvec.At<double>(0, 1), 
+            (float)tvec.At<double>(0, 2)
+        );
+        
+        Quaternion rot = Quaternion.LookRotation(m.GetColumn(2), m.GetColumn(1));
+
+        return new Pose(camTf.TransformPoint(pos), camTf.rotation * rot);
+    }
+
+    void UpdatePreviewTexture()
+    {
+        using var rgba = new Mat();
+        Cv2.CvtColor(frame, rgba, ColorConversionCodes.BGR2RGBA);
+        tex.LoadRawTextureData(rgba.Data, (int)(rgba.Total() * rgba.ElemSize()));
         tex.Apply();
+    }
+}
+
+public class PoseFilter {
+    public float aP, aR;
+    public Pose lastPose;
+    private bool initialized = false;
+
+    public PoseFilter(float ap, float ar) { aP = ap; aR = ar; }
+
+    public Pose Update(Pose p) {
+        if (!initialized) { lastPose = p; initialized = true; return p; }
+        p.position = Vector3.Lerp(lastPose.position, p.position, aP);
+        p.rotation = Quaternion.Slerp(lastPose.rotation, p.rotation, aR);
+        lastPose = p;
+        return p;
     }
 }
 
 #if UNITY_EDITOR
 [CustomEditor(typeof(TrackingCamera))]
-public class TrackingCameraEditor : Editor
-{
-    TrackingCamera targetScript;
-
-    public void Awake()
-    {
-        targetScript = (TrackingCamera)target;
-    }
-    
-    public override bool RequiresConstantRepaint()
-    {
-        return targetScript != null && targetScript.isTracking;
-    }
-
-      public override void OnInspectorGUI()
-    {
-        EditorGUILayout.BeginHorizontal();
-        int newSel = EditorGUILayout.Popup(
-            targetScript.sel,
-            targetScript.CameraNames.ToArray(),
-            GUILayout.MaxWidth(220)
-        );
-
-        if (GUILayout.Button("Refresh", GUILayout.MaxWidth(100)))
-            targetScript.ScanCams();
-
-        EditorGUILayout.EndHorizontal();
-
-        if (newSel != targetScript.sel)
-        {
-            targetScript.sel = newSel;
-            if (targetScript.isTracking)
-                targetScript.StartTracking();
+public class TrackingCameraEditor : Editor {
+    public override void OnInspectorGUI() {
+        var script = (TrackingCamera)target;
+        DrawDefaultInspector();
+        
+        if (GUILayout.Button("Scan Cameras")) script.ScanCams();
+        script.sel = EditorGUILayout.Popup("Camera", script.sel, script.CameraNames.ToArray());
+        
+        if (!script.isTracking && GUILayout.Button("START")) script.StartTracking();
+        if (script.isTracking && GUILayout.Button("STOP")) script.StopTracking();
+        
+        if (script.tex) {
+            float aspect = (float)script.tex.width / script.tex.height;
+            UnityEngine.Rect r = GUILayoutUtility.GetRect(Screen.width, Screen.width / aspect);
+            GUI.DrawTexture(r, script.tex, ScaleMode.ScaleToFit);
+            Repaint();
         }
-
-        EditorGUILayout.Space(4);
-
-        targetScript.sceneCamera = (Camera)EditorGUILayout.ObjectField(
-            "Scene Camera",
-            targetScript.sceneCamera,
-            typeof(Camera),
-            true
-        );
-
-        targetScript.tagSizeMeters =
-            EditorGUILayout.FloatField("Tag Size (m)", targetScript.tagSizeMeters);
-
-        targetScript.drawAxes =
-            EditorGUILayout.ToggleLeft("Axes", targetScript.drawAxes);
-
-        targetScript.drawBoxes =
-            EditorGUILayout.ToggleLeft("Boxes", targetScript.drawBoxes);
-
-        EditorGUILayout.Space(4);
-
-        targetScript.alphaPos =
-            EditorGUILayout.Slider("Smooth Pos", targetScript.alphaPos, 0.01f, 0.9f);
-
-        targetScript.alphaRot =
-            EditorGUILayout.Slider("Smooth Rot", targetScript.alphaRot, 0.01f, 0.9f);
-
-        targetScript.delayFrames =
-            EditorGUILayout.IntField("Delay Frames", targetScript.delayFrames);
-
-        EditorGUILayout.Space(8);
-
-        if (!targetScript.isTracking)
-        {
-            if (GUILayout.Button("Start Tracking"))
-                targetScript.StartTracking();
-        }
-        else
-        {
-            if (GUILayout.Button("Stop Tracking"))
-                targetScript.StopTracking();
-        }
-
-        if (targetScript.tex)
-        {
-            float aspect =
-                (float)targetScript.tex.width / targetScript.tex.height;
-
-            float width =
-                EditorGUIUtility.currentViewWidth - 20;
-
-            float height =
-                width / aspect;
-
-            GUILayout.Space(8);
-            GUILayout.Label(
-                targetScript.tex,
-                GUILayout.Width(width),
-                GUILayout.Height(height)
-            );
-        }
-
-        if (GUI.changed)
-            EditorUtility.SetDirty(targetScript);
     }
 }
 #endif

@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
+/*
 public class PoseFilter
 {
     readonly float alphaPos;
@@ -41,3 +42,4 @@ public class PoseFilter
         return buffer.Count == delayFrames + 1 ? buffer.Peek() : smoothed;
     }
 }
+*/
