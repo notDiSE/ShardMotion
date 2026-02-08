@@ -29,18 +29,6 @@ public static class TrackingMind
         if(records != null) commitedRecords.AddRange(records);
         commited++;
         
-        
-        var sb = new System.Text.StringBuilder();
-        sb.AppendLine($"Commited {commited}/{cameras.Count}");
-    
-        for (int i = 0; i < records.Count; i++)
-        {
-            sb.AppendLine($"[{i}] Target: {records[i].Target}");
-            sb.AppendLine($"[{i}] Dot: {records[i].Dot}");
-        }
-
-        Debug.Log(sb.ToString());
-        
         if (commited>=cameras.Count)
         {
             Evaluate();

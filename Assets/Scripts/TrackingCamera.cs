@@ -35,7 +35,11 @@ public class TrackingCamera : MonoBehaviour
     private Dictionary dictionary;
     private Coroutine tickRoutine;
     
+    public bool calibrate = false;
+    public CalibrationDevice calibrationDevice;
+    
     //public int 
+    
 
     public class TrackingRecord
     {
@@ -79,6 +83,7 @@ public class TrackingCamera : MonoBehaviour
 
     public void StartTracking()
     {
+        if(calibrate) CalibrationMind.CreateTarget(calibrationDevice);
         StopTracking();
         if (WebCamTexture.devices.Length == 0) return;
 
@@ -165,7 +170,12 @@ public class TrackingCamera : MonoBehaviour
         if (drawBoxes) CvAruco.DrawDetectedMarkers(frame, corners, ids);
         
         Dictionary<Transform, TrackingRecord> localRecords = new Dictionary<Transform, TrackingRecord>();
-
+        
+        foreach (var arUcoTarget in ArUcoRegistry.All)
+        {
+            Debug.Log("has target: " + arUcoTarget.transform.gameObject.name + " with id: " + arUcoTarget.markerId);
+        }
+        
         for (int i = 0; i < ids.Length; i++)
         {
             Vec3d rvecV3 = rvecs.Get<Vec3d>(i);
@@ -177,10 +187,12 @@ public class TrackingCamera : MonoBehaviour
                 if (drawAxes) 
                     Cv2.DrawFrameAxes(frame, k, d, rvecMat, tvecMat, tagSizeMeters * 0.5f);
             }
-            
+
             int id = ids[i];
+            Debug.Log("ID ------");
             if (ArUcoRegistry.TryGet(id, out var target))
-            {
+            {   
+                Debug.Log("ID " + target.markerId);
                 var p = PoseFromOpenCv(transform.localToWorldMatrix, rvecV3, tvecV3);
                 
                 if (!filters.ContainsKey(id)) filters[id] = new PoseFilter(alphaPos, alphaRot);
@@ -197,14 +209,19 @@ public class TrackingCamera : MonoBehaviour
                 {
                     localRecords[target.transform].Target = target;
                     localRecords[target.transform].Pos = p.position;
-                    localRecords[target.transform].Rot = p.rotation;
+                    Vector3 rotOffset = new Vector3(0, 0, 180);
+                    if (target.forwardAxis == MarkerAxis.X_NEG) rotOffset = testRotate;// new Vector3(180, 0, 0);
+                    localRecords[target.transform].Rot = p.rotation * Quaternion.Euler(rotOffset);
                     localRecords[target.transform].Dot = dot;
                 }
             }
         }
         
-        TrackingMind.Commit(this, localRecords.Values.ToList());
+        if(!calibrate) TrackingMind.Commit(this, localRecords.Values.ToList());
+        else CalibrationMind.Calibrate(this, localRecords.Values.ToList());
     }
+    
+    public Vector3 testRotate = new Vector3(0f, 0f, 180f);
     
 
     void UpdateTargetPose(int id, Mat rvec, Mat tvec)

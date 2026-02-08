@@ -8,42 +8,50 @@ public enum MarkerAxis
     Z_POS,
     Z_NEG
 }
-    
+
 public class ArUcoTarget : MonoBehaviour
 {
     public bool tracked = false;
     public int markerId;
     public MarkerAxis forwardAxis = MarkerAxis.Z_POS;
     public Vector3 positionOffset;
-    
+
     public float gizmoMarkerSize = 0.08f;
     public float gizmoArrowLength = 0.12f;
     public Color gizmoColor = new Color(1f, 0.2f, 0.2f, 1f);
-    
+
     public static Quaternion ToForwardRotation(MarkerAxis axis)
     {
+        
         return axis switch
         {
-            MarkerAxis.Z_POS => Quaternion.identity,
+            MarkerAxis.Z_POS => Quaternion.Euler(0, 0, 0),
             MarkerAxis.Z_NEG => Quaternion.Euler(0, 180, 0),
 
-            MarkerAxis.X_POS => Quaternion.Euler(0, -90, 0),
-            MarkerAxis.X_NEG => Quaternion.Euler(0, 90, 0),
+            MarkerAxis.X_POS => Quaternion.Euler(0, 90, 0),
+            MarkerAxis.X_NEG => Quaternion.Euler(0, -90, 0),
 
             MarkerAxis.Y_POS => Quaternion.Euler(90, 0, 0),
             MarkerAxis.Y_NEG => Quaternion.Euler(-90, 0, 0),
 
             _ => Quaternion.identity
         };
-    }
+        
     
+    }
+
     void OnEnable() => ArUcoRegistry.Register(this);
     void OnDisable() => ArUcoRegistry.Unregister(this);
-
+    
     public void ApplyPose(Vector3 pos, Quaternion rot)
     {
         var correctedRot = rot * ToForwardRotation(forwardAxis);
-        var correctedPos = pos + correctedRot * positionOffset;
+        Vector3 trueOffset = positionOffset;
+        if (forwardAxis == MarkerAxis.Z_NEG) trueOffset *= -1;
+        if (forwardAxis == MarkerAxis.X_NEG) trueOffset = new Vector3(positionOffset.z, positionOffset.y, positionOffset.x);
+        //var correctedPos = pos + correctedRot * positionOffset;
+        //var correctedPos = correctedRot * trueOffset;
+        var correctedPos =  pos + correctedRot * trueOffset;
 
         transform.SetPositionAndRotation(correctedPos, correctedRot);
     }

@@ -10,6 +10,7 @@ public static class ArUcoRegistry
     {
         if (!t) return;
         map[t.markerId] = t;
+        Debug.Log($"registrovani {t.transform.gameObject.name} s id {t.markerId}" );
     }
 
     public static void Unregister(ArUcoTarget t)
