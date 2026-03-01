@@ -28,8 +28,8 @@ public class ArUcoTarget : MonoBehaviour
             MarkerAxis.Z_POS => Quaternion.Euler(0, 0, 0),
             MarkerAxis.Z_NEG => Quaternion.Euler(0, 180, 0),
 
-            MarkerAxis.X_POS => Quaternion.Euler(0, 90, 0),
-            MarkerAxis.X_NEG => Quaternion.Euler(0, -90, 0),
+            MarkerAxis.X_POS => Quaternion.Euler(0, -90, 0),
+            MarkerAxis.X_NEG => Quaternion.Euler(0, 90, 0),
 
             MarkerAxis.Y_POS => Quaternion.Euler(90, 0, 0),
             MarkerAxis.Y_NEG => Quaternion.Euler(-90, 0, 0),
@@ -40,7 +40,7 @@ public class ArUcoTarget : MonoBehaviour
     
     }
 
-    void OnEnable() => ArUcoRegistry.Register(this);
+    //void OnEnable() => ArUcoRegistry.Register(this);
     void OnDisable() => ArUcoRegistry.Unregister(this);
     
     public void ApplyPose(Vector3 pos, Quaternion rot)
@@ -48,10 +48,12 @@ public class ArUcoTarget : MonoBehaviour
         var correctedRot = rot * ToForwardRotation(forwardAxis);
         Vector3 trueOffset = positionOffset;
         if (forwardAxis == MarkerAxis.Z_NEG) trueOffset *= -1;
-        if (forwardAxis == MarkerAxis.X_NEG) trueOffset = new Vector3(positionOffset.z, positionOffset.y, positionOffset.x);
-        //var correctedPos = pos + correctedRot * positionOffset;
-        //var correctedPos = correctedRot * trueOffset;
+        if (forwardAxis == MarkerAxis.X_NEG) trueOffset = new Vector3(-positionOffset.z, positionOffset.y, positionOffset.x);
+        if (forwardAxis == MarkerAxis.X_POS) trueOffset = new Vector3(positionOffset.z, positionOffset.y, positionOffset.x);
+        //var correctedPos = correctedRot * positionOffset;
+        //var correctedPos =  trueOffset;
         var correctedPos =  pos + correctedRot * trueOffset;
+        //var correctedPos =  correctedRot * trueOffset;
 
         transform.SetPositionAndRotation(correctedPos, correctedRot);
     }
@@ -60,6 +62,7 @@ public class ArUcoTarget : MonoBehaviour
     void OnDrawGizmosSelected()
     {
         var rot = transform.localRotation * ToForwardRotation(forwardAxis);
+        if (forwardAxis == MarkerAxis.X_NEG || forwardAxis == MarkerAxis.X_POS) rot = Quaternion.Euler(new Vector3(rot.eulerAngles.x, -rot.eulerAngles.y, rot.eulerAngles.z));
         var pos = transform.localPosition - rot * positionOffset;
 
         var half = gizmoMarkerSize * 0.5f;

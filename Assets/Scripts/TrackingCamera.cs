@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using UnityEngine;
 using OpenCvSharp;
@@ -11,20 +12,19 @@ using UnityEditor;
 
 public class TrackingCamera : MonoBehaviour
 {
-    [Header("Webcam Settings")]
-    public int sel; 
+    [Header("Webcam Settings")] public int sel;
     public bool isTracking;
     private WebCamTexture webCamTexture;
     private Color32[] pixelData;
-    public Texture2D tex; 
+    public Texture2D tex;
 
-    [Header("ArUco Settings")]
-    public float tagSizeMeters = 0.05f;
+    [Header("ArUco Settings")] public float tagSizeMeters = 0.05f;
     public bool drawAxes = true;
     public bool drawBoxes = true;
 
-    [Header("Smoothing")]
-    [Range(0.01f, 1f)] public float alphaPos = 0.25f;
+    [Header("Smoothing")] [Range(0.01f, 1f)]
+    public float alphaPos = 0.25f;
+
     [Range(0.01f, 1f)] public float alphaRot = 0.25f;
 
     private Mat frame = new Mat();
@@ -35,10 +35,24 @@ public class TrackingCamera : MonoBehaviour
     private Dictionary dictionary;
     private Coroutine tickRoutine;
     
-    public bool calibrate = false;
     public CalibrationDevice calibrationDevice;
-    
-    //public int 
+    public bool startAutomatically = false;
+
+    public int calibratedValues = 0;
+    public float calibratedAmountDebug = 0;
+    public Vector3 calibratedPosAverage;
+    public Quaternion calibratedRotAverage;
+    public CalibrationState calibrationState = CalibrationState.NotCalibrated;
+
+    public enum CalibrationState
+    {
+        NotCalibrated,
+        Calibrating,
+        Calibrated,
+        Failed
+    }
+
+//public int 
     
 
     public class TrackingRecord
@@ -52,6 +66,11 @@ public class TrackingCamera : MonoBehaviour
         {
             Target.ApplyPose(Pos, Rot);
         }
+    }
+
+    private void Start()
+    {
+        if(startAutomatically) StartTracking();
     }
 
     void OnEnable()
@@ -83,7 +102,6 @@ public class TrackingCamera : MonoBehaviour
 
     public void StartTracking()
     {
-        if(calibrate) CalibrationMind.CreateTarget(calibrationDevice);
         StopTracking();
         if (WebCamTexture.devices.Length == 0) return;
 
@@ -217,7 +235,7 @@ public class TrackingCamera : MonoBehaviour
             }
         }
         
-        if(!calibrate) TrackingMind.Commit(this, localRecords.Values.ToList());
+        if(calibrationState != CalibrationState.Calibrating) TrackingMind.Commit(this, localRecords.Values.ToList());
         else CalibrationMind.Calibrate(this, localRecords.Values.ToList());
     }
     
@@ -335,6 +353,7 @@ public class TrackingCameraEditor : Editor {
         var script = (TrackingCamera)target;
         DrawDefaultInspector();
         
+        if(GUILayout.Button("Save calibration")) CalibrationMind.SaveCalibration(script);
         if (GUILayout.Button("Scan Cameras")) script.ScanCams();
         script.sel = EditorGUILayout.Popup("Camera", script.sel, script.CameraNames.ToArray());
         
