@@ -43,6 +43,9 @@ public class TrackingCamera : MonoBehaviour
     public Vector3 calibratedPosAverage;
     public Quaternion calibratedRotAverage;
     public CalibrationState calibrationState = CalibrationState.NotCalibrated;
+    
+    private string SavedPosKey => $"{gameObject.name}_pos";
+    private string SavedRotKey => $"{gameObject.name}_rot";
 
     public enum CalibrationState
     {
@@ -71,6 +74,7 @@ public class TrackingCamera : MonoBehaviour
     private void Start()
     {
         if(startAutomatically) StartTracking();
+        LoadPos();
     }
 
     void OnEnable()
@@ -86,6 +90,40 @@ public class TrackingCamera : MonoBehaviour
         StopTracking();
         if (frame != null && !frame.IsDisposed) frame.Dispose();
         TrackingMind.Unregister(this);
+    }
+
+    public void SavePos()
+    {
+        PlayerPrefs.SetFloat(SavedPosKey + "_x", transform.position.x);
+        PlayerPrefs.SetFloat(SavedPosKey + "_y", transform.position.y);
+        PlayerPrefs.SetFloat(SavedPosKey + "_z", transform.position.z);
+
+        PlayerPrefs.SetFloat(SavedRotKey + "_x", transform.rotation.x);
+        PlayerPrefs.SetFloat(SavedRotKey + "_y", transform.rotation.y);
+        PlayerPrefs.SetFloat(SavedRotKey + "_z", transform.rotation.z);
+        PlayerPrefs.SetFloat(SavedRotKey + "_w", transform.rotation.w);
+        
+        PlayerPrefs.Save();
+    }
+
+    public void LoadPos()
+    {
+        if(!PlayerPrefs.HasKey(SavedPosKey + "_x")) return;
+        
+        Vector3 pos = new Vector3(
+            PlayerPrefs.GetFloat(SavedPosKey + "_x"),
+            PlayerPrefs.GetFloat(SavedPosKey + "_y"),
+            PlayerPrefs.GetFloat(SavedPosKey + "_z")
+        );
+        Quaternion rot = new Quaternion(
+            PlayerPrefs.GetFloat(SavedRotKey + "_x"),
+            PlayerPrefs.GetFloat(SavedRotKey + "_y"),
+            PlayerPrefs.GetFloat(SavedRotKey + "_z"),
+            PlayerPrefs.GetFloat(SavedRotKey + "_w")
+        );
+        
+        transform.position = pos;
+        transform.rotation = rot;
     }
 
     public void ScanCams()

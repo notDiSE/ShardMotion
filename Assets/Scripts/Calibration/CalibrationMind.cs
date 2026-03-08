@@ -158,6 +158,7 @@ public static class CalibrationMind
             cam.calibrationState = TrackingCamera.CalibrationState.Calibrated;
             cam.transform.position = calibratedPoint.transform.position;
             cam.transform.rotation = calibratedPoint.transform.rotation;
+            cam.SavePos();
         }
     }
 

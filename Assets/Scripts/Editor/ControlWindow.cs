@@ -14,6 +14,7 @@ public class ControlPanel : EditorWindow
     private List<ArUcoTarget> targets = new List<ArUcoTarget>();
 
     private bool calibrating = false;
+    private bool targetsRegistered = false;
 
     [MenuItem("Tools/ShardMotion/ControlPanel")]
     public static void ShowWindow()
@@ -78,6 +79,8 @@ public class ControlPanel : EditorWindow
             }
         }
     }
+    
+    
 
     void StartCalibration()
     {
@@ -88,6 +91,7 @@ public class ControlPanel : EditorWindow
         }
         UnregisterTargets();
         calibrating = true;
+        PlayerPrefs.DeleteAll();
         CalibrationMind.CreateTarget(calibrationDevice);
     }
 
@@ -104,20 +108,32 @@ public class ControlPanel : EditorWindow
 
     void RegisterTargets()
     {
+        if (targetsRegistered)
+        {
+            Debug.LogError("Targets already registered");
+            return;
+        }
         for (int i = 0; i < targets.Count; i++)
         {
             var t = targets[i];
             if (t) ArUcoRegistry.Register(t);
         }
+        targetsRegistered = true;
     }
 
     void UnregisterTargets()
     {
+        if (!targetsRegistered)
+        {
+            Debug.LogError("No targets to register");
+            return;
+        }
         for (int i = 0; i < targets.Count; i++)
         {
             var t = targets[i];
             if (t) ArUcoRegistry.Unregister(t);
         }
+        targetsRegistered = false;
     }
 
     private void OnGUI()
@@ -213,6 +229,23 @@ public class ControlPanel : EditorWindow
             if (GUILayout.Button("Start Calibration"))
             {
                 StartCalibration();
+            }
+        }
+        GUILayout.EndHorizontal();
+        
+        GUILayout.BeginHorizontal(EditorStyles.toolbar);
+        if (targetsRegistered)
+        {
+            if (GUILayout.Button("Unregister Targets"))
+            {
+                UnregisterTargets();
+            }
+        }
+        else
+        {
+            if (GUILayout.Button("Register Targets"))
+            {
+                RegisterTargets();
             }
         }
         GUILayout.EndHorizontal();
