@@ -227,6 +227,7 @@ public class TrackingCamera : MonoBehaviour
         
         Dictionary<Transform, TrackingRecord> localRecords = new Dictionary<Transform, TrackingRecord>();
         
+        
         foreach (var arUcoTarget in ArUcoRegistry.All)
         {
             Debug.Log("has target: " + arUcoTarget.transform.gameObject.name + " with id: " + arUcoTarget.markerId);
@@ -404,6 +405,7 @@ public class TrackingCameraEditor : Editor {
             GUI.DrawTexture(r, script.tex, ScaleMode.ScaleToFit);
             Repaint();
         }
+        if (GUILayout.Button("Open Camera Calibration")) CamCalibEditor.Open(script);
     }
 }
 #endif
