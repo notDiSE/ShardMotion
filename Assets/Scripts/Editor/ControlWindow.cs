@@ -15,6 +15,7 @@ public class ControlPanel : EditorWindow
 
     private bool calibrating = false;
     private bool targetsRegistered = false;
+    public bool autoRegisterTargets = true;
 
     [MenuItem("Tools/ShardMotion/ControlPanel")]
     public static void ShowWindow()
@@ -38,8 +39,16 @@ public class ControlPanel : EditorWindow
 
     private void OnPlayModeStateChanged(PlayModeStateChange state)
     {
-        if (state == PlayModeStateChange.EnteredPlayMode || state == PlayModeStateChange.EnteredEditMode)
+        if (state == PlayModeStateChange.EnteredPlayMode)
         {
+            if(autoRegisterTargets) RegisterTargets();
+            ResolveFromIds();
+            Repaint();
+        }
+
+        if (state == PlayModeStateChange.EnteredEditMode)
+        {
+            UnregisterTargets();
             ResolveFromIds();
             Repaint();
         }
@@ -234,6 +243,7 @@ public class ControlPanel : EditorWindow
         GUILayout.EndHorizontal();
         
         GUILayout.BeginHorizontal(EditorStyles.toolbar);
+        autoRegisterTargets = EditorGUILayout.Toggle("Auto Register Targets", autoRegisterTargets);
         if (targetsRegistered)
         {
             if (GUILayout.Button("Unregister Targets"))

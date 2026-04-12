@@ -126,6 +126,43 @@ public class TrackingCamera : MonoBehaviour
         transform.rotation = rot;
     }
 
+    Mat GetCameraMatrix()
+    {
+        string cameraName = WebCamTexture.devices[sel].name;
+        if (PlayerPrefs.GetInt(cameraName + "_calibrated", 0) == 0)
+        {
+            Debug.LogWarning($"No Distortion camera matrix detected for {cameraName}, using default");
+            return new Mat(3, 3, MatType.CV_64F, new double[] {
+                webCamTexture.width, 0, webCamTexture.width / 2.0,
+                0, webCamTexture.width, webCamTexture.height / 2.0,
+                0, 0, 1
+            });
+        }
+        return new Mat(3, 3, MatType.CV_64F, new double[] {
+            PlayerPrefs.GetFloat(cameraName + "_fx"), PlayerPrefs.GetFloat(cameraName + "_gamma"), PlayerPrefs.GetFloat(cameraName + "_cx"),
+            0,                                            PlayerPrefs.GetFloat(cameraName + "_fy"),    PlayerPrefs.GetFloat(cameraName + "_cy"),
+            0,                                            0,                                               1
+        });
+    }
+
+    Mat GetDistCoeffs()
+    {
+        string cameraName = WebCamTexture.devices[sel].name;
+        if (PlayerPrefs.GetInt(cameraName + "_calibrated", 0) == 0)
+        {
+            Debug.LogWarning($"No Distortion coefficients detected for {cameraName}, using default");
+            return new Mat(1, 5, MatType.CV_64F, new Scalar(0));
+        }
+
+        return new Mat(1, 5, MatType.CV_64F, new double[] {
+            PlayerPrefs.GetFloat(cameraName + "_k1"),
+            PlayerPrefs.GetFloat(cameraName + "_k2"),
+            PlayerPrefs.GetFloat(cameraName + "_p1"),
+            PlayerPrefs.GetFloat(cameraName + "_p2"),
+            PlayerPrefs.GetFloat(cameraName + "_k3")
+        });
+    }
+
     public void ScanCams()
     {
         camNames.Clear();
@@ -211,6 +248,7 @@ public class TrackingCamera : MonoBehaviour
 
         if (ids == null || ids.Length == 0) return;
         
+        /*
         using Mat k = new Mat(3, 3, MatType.CV_64F, new double[] {
             webCamTexture.width, 0, webCamTexture.width / 2.0,
             0, webCamTexture.width, webCamTexture.height / 2.0,
@@ -218,6 +256,11 @@ public class TrackingCamera : MonoBehaviour
         });
 
         using Mat d = new Mat(1, 5, MatType.CV_64F, 0);
+        */
+
+        using Mat k = GetCameraMatrix();
+        using Mat d = GetDistCoeffs();
+        
         using Mat rvecs = new Mat();
         using Mat tvecs = new Mat(); 
 
@@ -225,7 +268,6 @@ public class TrackingCamera : MonoBehaviour
 
         if (drawBoxes) CvAruco.DrawDetectedMarkers(frame, corners, ids);
         
-        Dictionary<Transform, TrackingRecord> localRecords = new Dictionary<Transform, TrackingRecord>();
         
         
         foreach (var arUcoTarget in ArUcoRegistry.All)
@@ -233,6 +275,8 @@ public class TrackingCamera : MonoBehaviour
             Debug.Log("has target: " + arUcoTarget.transform.gameObject.name + " with id: " + arUcoTarget.markerId);
         }
         
+        //Dictionary<Transform, TrackingRecord> localRecords = new Dictionary<Transform, TrackingRecord>();
+        List<TrackingRecord> records = new List<TrackingRecord>();
         for (int i = 0; i < ids.Length; i++)
         {
             Vec3d rvecV3 = rvecs.Get<Vec3d>(i);
@@ -249,7 +293,6 @@ public class TrackingCamera : MonoBehaviour
             Debug.Log("ID ------");
             if (ArUcoRegistry.TryGet(id, out var target))
             {   
-                Debug.Log("ID " + target.markerId);
                 var p = PoseFromOpenCv(transform.localToWorldMatrix, rvecV3, tvecV3);
                 
                 if (!filters.ContainsKey(id)) filters[id] = new PoseFilter(alphaPos, alphaRot);
@@ -258,7 +301,15 @@ public class TrackingCamera : MonoBehaviour
                 target.tracked = true;
                 
                 float dot = Vector3.Dot(p.rotation * Vector3.forward, (transform.position - p.position).normalized);
-
+                TrackingRecord record = new TrackingRecord();
+                record.Target = target;
+                record.Pos = p.position;
+                record.Rot = p.rotation;
+                record.Dot = dot;
+                records.Add(record);
+                Debug.Log("ID " + target.markerId + ", " + dot);
+                
+                /*
                 if (!localRecords.ContainsKey(target.transform))
                     localRecords[target.transform] = new TrackingRecord();
 
@@ -266,16 +317,22 @@ public class TrackingCamera : MonoBehaviour
                 {
                     localRecords[target.transform].Target = target;
                     localRecords[target.transform].Pos = p.position;
-                    Vector3 rotOffset = new Vector3(0, 0, 180);
-                    if (target.forwardAxis == MarkerAxis.X_NEG) rotOffset = testRotate;// new Vector3(180, 0, 0);
-                    localRecords[target.transform].Rot = p.rotation * Quaternion.Euler(rotOffset);
+                    
+                    localRecords[target.transform].Rot = p.rotation;
                     localRecords[target.transform].Dot = dot;
                 }
+                */
+            
             }
         }
         
+        if(calibrationState != CalibrationState.Calibrating) TrackingMind.Commit(this, records);
+        else CalibrationMind.Calibrate(this, records);
+        
+        /*
         if(calibrationState != CalibrationState.Calibrating) TrackingMind.Commit(this, localRecords.Values.ToList());
         else CalibrationMind.Calibrate(this, localRecords.Values.ToList());
+        */
     }
     
     public Vector3 testRotate = new Vector3(0f, 0f, 180f);
@@ -306,7 +363,8 @@ public class TrackingCamera : MonoBehaviour
         Cv2.Rodrigues(r, Rm);
 
         var R = MatToMatrix4x4(Rm);
-        var S = Matrix4x4.Scale(new Vector3(1, -1, 1));
+        //var S = Matrix4x4.Scale(new Vector3(1, -1, 1));
+        var S = Matrix4x4.Scale(new Vector3(-1, -1, 1));
         var Ru = S * R * S;
 
         var tCv = new Vector3((float)tvec.Item0, (float)tvec.Item1, (float)tvec.Item2);

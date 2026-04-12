@@ -14,11 +14,15 @@ public class ArUcoTarget : MonoBehaviour
     public bool tracked = false;
     public int markerId;
     public MarkerAxis forwardAxis = MarkerAxis.Z_POS;
+    public Vector3 rotationOffset = Vector3.zero;
     public Vector3 positionOffset;
 
     public float gizmoMarkerSize = 0.08f;
     public float gizmoArrowLength = 0.12f;
     public Color gizmoColor = new Color(1f, 0.2f, 0.2f, 1f);
+    
+    //void OnEnable() => ArUcoRegistry.Register(this);
+    void OnDisable() => ArUcoRegistry.Unregister(this);
 
     public static Quaternion ToForwardRotation(MarkerAxis axis)
     {
@@ -39,10 +43,30 @@ public class ArUcoTarget : MonoBehaviour
         
     
     }
-
-    //void OnEnable() => ArUcoRegistry.Register(this);
-    void OnDisable() => ArUcoRegistry.Unregister(this);
     
+    public (Vector3 pos, Quaternion rot) CorrectedPose(Vector3 rawPos, Quaternion rawRot)
+    {
+        var rot = rawRot * Quaternion.Euler(rotationOffset);
+        var pos = rawPos + rot * positionOffset;
+        return (pos, rot);
+    }
+    
+    public void ApplyPose(Vector3 rawPos, Quaternion rawRot)
+    {
+        var correctedRot = rawRot * Quaternion.Euler(rotationOffset);
+        var correctedPos = rawPos + correctedRot * positionOffset;
+    
+        transform.SetPositionAndRotation(correctedPos, correctedRot);
+    }
+    
+    public (Vector3 markerPos, Quaternion markerRot) InverseMarkerPose()
+    {
+        var rot = transform.rotation * Quaternion.Inverse(Quaternion.Euler(rotationOffset));
+        var pos = transform.position - transform.rotation * positionOffset;
+        return (pos, rot);
+    }
+
+    /*
     public void ApplyPose(Vector3 pos, Quaternion rot)
     {
         var correctedRot = rot * ToForwardRotation(forwardAxis);
@@ -57,41 +81,39 @@ public class ArUcoTarget : MonoBehaviour
 
         transform.SetPositionAndRotation(correctedPos, correctedRot);
     }
+    */
     
 #if UNITY_EDITOR
     void OnDrawGizmosSelected()
     {
-        var rot = transform.localRotation * ToForwardRotation(forwardAxis);
-        if (forwardAxis == MarkerAxis.X_NEG || forwardAxis == MarkerAxis.X_POS) rot = Quaternion.Euler(new Vector3(rot.eulerAngles.x, -rot.eulerAngles.y, rot.eulerAngles.z));
-        var pos = transform.localPosition - rot * positionOffset;
+        var (markerPos, markerRot) = InverseMarkerPose();
 
         var half = gizmoMarkerSize * 0.5f;
+        var r = markerRot * Vector3.right;
+        var u = markerRot * Vector3.up;
+        var f = markerRot * Vector3.forward;
 
-        var r = rot * Vector3.right;
-        var u = rot * Vector3.up;
-        var f = rot * Vector3.forward;
+        var p0 = markerPos + (-r - u) * half;
+        var p1 = markerPos + ( r - u) * half;
+        var p2 = markerPos + ( r + u) * half;
+        var p3 = markerPos + (-r + u) * half;
 
-        var p0 = pos + (-r - u) * half;
-        var p1 = pos + ( r - u) * half;
-        var p2 = pos + ( r + u) * half;
-        var p3 = pos + (-r + u) * half;
-
-        UnityEditor.Handles.color = Application.isPlaying  ? (tracked ? gizmoColor : Color.grey)  : gizmoColor;
+        UnityEditor.Handles.color = Application.isPlaying
+            ? (tracked ? gizmoColor : Color.grey)
+            : gizmoColor;
         UnityEditor.Handles.DrawAAPolyLine(3f, p0, p1, p2, p3, p0);
 
         UnityEditor.Handles.ArrowHandleCap(
-            0,
-            pos,
+            0, markerPos,
             Quaternion.LookRotation(f, u),
             gizmoArrowLength,
             EventType.Repaint
         );
 
         UnityEditor.Handles.Label(
-            pos + u * (gizmoMarkerSize * 0.6f),
+            markerPos + u * (gizmoMarkerSize * 0.6f),
             $"ID: {markerId}"
         );
     }
 #endif
-    
 }

@@ -19,12 +19,17 @@ public class CamCalibEditor : EditorWindow
     Coroutine autoCaptureRoutine;
     List<Texture2D> captures = new List<Texture2D>();
     private bool processed = false;
+    private int successCount = 0;
     
     int boardW = 7;
     int boardH = 5;
     private double rms;
-    private Mat cameraMatrix;
-    private Mat distCoeffs;
+    private double fx, fy;
+    private double cx, cy;
+    private double gamma;
+    
+    private double k1, k2, k3;
+    private double p1, p2;
 
     public static void Open(TrackingCamera camera)
     {
@@ -116,14 +121,15 @@ public class CamCalibEditor : EditorWindow
         }
         EditorGUI.EndDisabledGroup();
 
-        /*
+        
         if (processed)
         {
-            GUILayout.Label($"reprojection error: {rms:F4}");
-            GUILayout.Label($"Camera Matrix:\n{cameraMatrix.Dump()}");
-            GUILayout.Label($"Dist Coeffs:\n{distCoeffs.Dump()}");
+            GUILayout.Label($"Chessboard found: {successCount}/{captures.Count}");
+            GUIStyle green = new GUIStyle(EditorStyles.label);
+            green.normal.textColor = Color.green;
+            GUILayout.Label("Successfully processed", green);
         }
-        */
+        
 
         GUILayout.EndVertical();
         GUILayout.Space(16);
@@ -138,7 +144,7 @@ public class CamCalibEditor : EditorWindow
         if (!processed) EditorGUI.BeginDisabledGroup(true);
         if (GUILayout.Button(new GUIContent("  Save", EditorGUIUtility.IconContent("d_SaveAs").image), SaveStyle()))
         {
-            Close();
+            Save();
         }
         EditorGUI.EndDisabledGroup();
 
@@ -240,7 +246,7 @@ public class CamCalibEditor : EditorWindow
                 objCorners.Set<Vec3f>(row * boardSize.Width + col, 
                     new Vec3f(col * squareSizeMeters, row * squareSizeMeters, 0f));
 
-        int successCount = 0;
+        successCount = 0;
 
         foreach (var cap in captures)
         {
@@ -281,8 +287,8 @@ public class CamCalibEditor : EditorWindow
         }
         
         Size imgSize = new Size(captures[0].width, captures[0].height);
-        cameraMatrix = Mat.Eye(3, 3, MatType.CV_64F);
-        distCoeffs = new Mat(1, 5, MatType.CV_64F, new Scalar(0));
+        Mat cameraMatrix = Mat.Eye(3, 3, MatType.CV_64F);
+        Mat distCoeffs = new Mat(1, 5, MatType.CV_64F, new Scalar(0));
         Mat[] rvecs, tvecs;
 
         rms = Cv2.CalibrateCamera(
@@ -295,6 +301,21 @@ public class CamCalibEditor : EditorWindow
         Debug.Log($"[CamCalib] RMS reprojection error: {rms:F4}");
         Debug.Log($"[CamCalib] Camera Matrix:\n{cameraMatrix.Dump()}");
         Debug.Log($"[CamCalib] Dist Coeffs: {distCoeffs.Dump()}");
+        
+        fx    = cameraMatrix.Get<double>(0, 0);
+        gamma = cameraMatrix.Get<double>(0, 1);
+        cx    = cameraMatrix.Get<double>(0, 2);
+        fy    = cameraMatrix.Get<double>(1, 1);
+        cy    = cameraMatrix.Get<double>(1, 2);
+
+        k1 = distCoeffs.Get<double>(0, 0);
+        k2 = distCoeffs.Get<double>(0, 1);
+        p1 = distCoeffs.Get<double>(0, 2);
+        p2 = distCoeffs.Get<double>(0, 3);
+        k3 = distCoeffs.Get<double>(0, 4);
+        
+        cameraMatrix.Dispose();
+        distCoeffs.Dispose();
         processed = true;
         
         foreach (var m in objPoints) m.Dispose();
@@ -324,6 +345,27 @@ public class CamCalibEditor : EditorWindow
             $"Calibrated from {successCount} images.\nRMS error: {rms:F4}", "OK");
             
         */
+    }
+
+    void Save()
+    {
+        string cameraName = WebCamTexture.devices[trackingCamera.sel].name;
+        
+        PlayerPrefs.SetFloat(cameraName + "_fx", (float)fx);
+        PlayerPrefs.SetFloat(cameraName + "_fy", (float)fy);
+        PlayerPrefs.SetFloat(cameraName + "_cx", (float)cx);
+        PlayerPrefs.SetFloat(cameraName + "_cy", (float)cy);
+        PlayerPrefs.SetFloat(cameraName + "_gamma", (float)gamma);
+        PlayerPrefs.SetFloat(cameraName + "_k1", (float)k1);
+        PlayerPrefs.SetFloat(cameraName + "_k2", (float)k2);
+        PlayerPrefs.SetFloat(cameraName + "_k3", (float)k3);
+        PlayerPrefs.SetFloat(cameraName + "_p1", (float)p1);
+        PlayerPrefs.SetFloat(cameraName + "_p2", (float)p2);
+        PlayerPrefs.SetInt(cameraName + "_calibrated", 1);
+        PlayerPrefs.Save();
+        Debug.Log($"Saved for: {cameraName}");
+        Close();
+        
     }
 
     private void OnEnable()
