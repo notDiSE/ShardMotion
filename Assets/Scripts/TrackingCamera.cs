@@ -5,6 +5,7 @@ using OpenCvSharp;
 using OpenCvSharp.Aruco;
 using System.Collections.Generic;
 using System.Linq;
+using Rect = UnityEngine.Rect;
 
 #if UNITY_EDITOR
 using UnityEditor;
@@ -22,11 +23,6 @@ public class TrackingCamera : MonoBehaviour
     public bool drawAxes = true;
     public bool drawBoxes = true;
 
-    [Header("Smoothing")] [Range(0.01f, 1f)]
-    public float alphaPos = 0.25f;
-
-    [Range(0.01f, 1f)] public float alphaRot = 0.25f;
-
     private Mat frame = new Mat();
     private readonly Dictionary<int, PoseFilter> filters = new Dictionary<int, PoseFilter>();
     private List<string> camNames = new List<string>();
@@ -35,14 +31,13 @@ public class TrackingCamera : MonoBehaviour
     private Dictionary dictionary;
     private Coroutine tickRoutine;
     
-    public CalibrationDevice calibrationDevice;
-    public bool startAutomatically = false;
 
     public int calibratedValues = 0;
     public float calibratedAmountDebug = 0;
     public Vector3 calibratedPosAverage;
     public Quaternion calibratedRotAverage;
     public CalibrationState calibrationState = CalibrationState.NotCalibrated;
+    public bool startAutomatically = true;
     
     private string SavedPosKey => $"{gameObject.name}_pos";
     private string SavedRotKey => $"{gameObject.name}_rot";
@@ -81,7 +76,7 @@ public class TrackingCamera : MonoBehaviour
     {
         ScanCams();
         detectorParams = new DetectorParameters();
-        dictionary = CvAruco.GetPredefinedDictionary(PredefinedDictionaryName.Dict4X4_50);
+        dictionary = CvAruco.GetPredefinedDictionary(ShardMotionConfig.Dictionary);
         TrackingMind.Register(this);
     }
 
@@ -248,16 +243,6 @@ public class TrackingCamera : MonoBehaviour
 
         if (ids == null || ids.Length == 0) return;
         
-        /*
-        using Mat k = new Mat(3, 3, MatType.CV_64F, new double[] {
-            webCamTexture.width, 0, webCamTexture.width / 2.0,
-            0, webCamTexture.width, webCamTexture.height / 2.0,
-            0, 0, 1
-        });
-
-        using Mat d = new Mat(1, 5, MatType.CV_64F, 0);
-        */
-
         using Mat k = GetCameraMatrix();
         using Mat d = GetDistCoeffs();
         
@@ -268,14 +253,6 @@ public class TrackingCamera : MonoBehaviour
 
         if (drawBoxes) CvAruco.DrawDetectedMarkers(frame, corners, ids);
         
-        
-        
-        foreach (var arUcoTarget in ArUcoRegistry.All)
-        {
-            Debug.Log("has target: " + arUcoTarget.transform.gameObject.name + " with id: " + arUcoTarget.markerId);
-        }
-        
-        //Dictionary<Transform, TrackingRecord> localRecords = new Dictionary<Transform, TrackingRecord>();
         List<TrackingRecord> records = new List<TrackingRecord>();
         for (int i = 0; i < ids.Length; i++)
         {
@@ -290,12 +267,11 @@ public class TrackingCamera : MonoBehaviour
             }
 
             int id = ids[i];
-            Debug.Log("ID ------");
             if (ArUcoRegistry.TryGet(id, out var target))
             {   
                 var p = PoseFromOpenCv(transform.localToWorldMatrix, rvecV3, tvecV3);
                 
-                if (!filters.ContainsKey(id)) filters[id] = new PoseFilter(alphaPos, alphaRot);
+                if (!filters.ContainsKey(id)) filters[id] = new PoseFilter(ShardMotionConfig.PositionSmoothing, ShardMotionConfig.RotationSmoothing);
                 p = filters[id].Update(p);
 
                 target.tracked = true;
@@ -307,48 +283,12 @@ public class TrackingCamera : MonoBehaviour
                 record.Rot = p.rotation;
                 record.Dot = dot;
                 records.Add(record);
-                Debug.Log("ID " + target.markerId + ", " + dot);
-                
-                /*
-                if (!localRecords.ContainsKey(target.transform))
-                    localRecords[target.transform] = new TrackingRecord();
-
-                if (localRecords[target.transform].Target == null || localRecords[target.transform].Dot < dot)
-                {
-                    localRecords[target.transform].Target = target;
-                    localRecords[target.transform].Pos = p.position;
-                    
-                    localRecords[target.transform].Rot = p.rotation;
-                    localRecords[target.transform].Dot = dot;
-                }
-                */
             
             }
         }
         
         if(calibrationState != CalibrationState.Calibrating) TrackingMind.Commit(this, records);
         else CalibrationMind.Calibrate(this, records);
-        
-        /*
-        if(calibrationState != CalibrationState.Calibrating) TrackingMind.Commit(this, localRecords.Values.ToList());
-        else CalibrationMind.Calibrate(this, localRecords.Values.ToList());
-        */
-    }
-    
-    public Vector3 testRotate = new Vector3(0f, 0f, 180f);
-    
-
-    void UpdateTargetPose(int id, Mat rvec, Mat tvec)
-    {
-        if (!ArUcoRegistry.TryGet(id, out var target)) return;
-        
-        var pose = PoseFromOpenCv(transform, rvec, tvec);
-
-        if (!filters.TryGetValue(id, out var f))
-            filters[id] = f = new PoseFilter(alphaPos, alphaRot);
-
-        var smoothed = f.Update(pose);
-        target.ApplyPose(smoothed.position, smoothed.rotation);
     }
     
     
@@ -363,7 +303,6 @@ public class TrackingCamera : MonoBehaviour
         Cv2.Rodrigues(r, Rm);
 
         var R = MatToMatrix4x4(Rm);
-        //var S = Matrix4x4.Scale(new Vector3(1, -1, 1));
         var S = Matrix4x4.Scale(new Vector3(-1, -1, 1));
         var Ru = S * R * S;
 
@@ -445,25 +384,59 @@ public class PoseFilter {
 
 #if UNITY_EDITOR
 [CustomEditor(typeof(TrackingCamera))]
-public class TrackingCameraEditor : Editor {
-    public override void OnInspectorGUI() {
+public class TrackingCameraEditor : Editor
+{
+    public override void OnInspectorGUI()
+    {
         var script = (TrackingCamera)target;
-        DrawDefaultInspector();
-        
-        if(GUILayout.Button("Save calibration")) CalibrationMind.SaveCalibration(script);
-        if (GUILayout.Button("Scan Cameras")) script.ScanCams();
+
+        GUILayout.Space(8);
+
+        EditorGUILayout.BeginHorizontal();
         script.sel = EditorGUILayout.Popup("Camera", script.sel, script.CameraNames.ToArray());
-        
-        if (!script.isTracking && GUILayout.Button("START")) script.StartTracking();
-        if (script.isTracking && GUILayout.Button("STOP")) script.StopTracking();
-        
+        if (GUILayout.Button(EditorGUIUtility.IconContent("d_Refresh"), GUILayout.Width(36), GUILayout.Height(20)))
+            script.ScanCams();
+        EditorGUILayout.EndHorizontal();
+
+        GUILayout.Space(8);
+
+        if (!script.isTracking)
+        {
+            if (GUILayout.Button("START")) script.StartTracking();
+        }
+        else
+        {
+            if (GUILayout.Button("STOP")) script.StopTracking();
+        }
+
+        GUILayout.Space(8);
+
         if (script.tex) {
             float aspect = (float)script.tex.width / script.tex.height;
-            UnityEngine.Rect r = GUILayoutUtility.GetRect(Screen.width, Screen.width / aspect);
+            Rect r = GUILayoutUtility.GetRect(Screen.width, Screen.width / aspect);
+            Matrix4x4 m = GUI.matrix;
+            GUIUtility.ScaleAroundPivot(new Vector2(1, -1), new Vector2(r.x + r.width * 0.5f, r.y + r.height * 0.5f));
             GUI.DrawTexture(r, script.tex, ScaleMode.ScaleToFit);
+            GUI.matrix = m;
             Repaint();
         }
-        if (GUILayout.Button("Open Camera Calibration")) CamCalibEditor.Open(script);
+
+        GUILayout.Space(8);
+
+        if (GUILayout.Button(new GUIContent("  Camera Calibration", EditorGUIUtility.IconContent("d_SettingsIcon").image), CalibStyle()))
+            CamCalibEditor.Open(script);
+
+        GUILayout.Space(8);
+    }
+
+    GUIStyle CalibStyle()
+    {
+        var s = new GUIStyle(GUI.skin.button);
+        s.fixedHeight = 60;
+        s.fontSize = 14;
+        s.fontStyle = FontStyle.Bold;
+        s.border = new RectOffset(8, 8, 8, 8);
+        return s;
     }
 }
 #endif
