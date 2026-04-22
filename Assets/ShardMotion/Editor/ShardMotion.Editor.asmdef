@@ -2,8 +2,7 @@
     "name": "ShardMotion.Editor",
     "rootNamespace": "",
     "references": [
-        "GUID:84ebbf20ed8f64da38fc9c963f1c9636",
-        "ShardMotion"
+        "GUID:84ebbf20ed8f64da38fc9c963f1c9636"
     ],
     "includePlatforms": [
         "Editor"
