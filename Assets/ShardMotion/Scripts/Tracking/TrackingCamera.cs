@@ -5,6 +5,7 @@ using OpenCvSharp;
 using OpenCvSharp.Aruco;
 using System.Collections.Generic;
 using System.Linq;
+using UnityEngine.Events;
 using Rect = UnityEngine.Rect;
 
 #if UNITY_EDITOR
@@ -19,15 +20,15 @@ public class TrackingCamera : MonoBehaviour
     private Color32[] pixelData;
     public Texture2D tex;
 
-    [Header("ArUco Settings")] public float tagSizeMeters = 0.05f;
+    [Header("ArUco Settings")]
     public bool drawAxes = true;
     public bool drawBoxes = true;
 
     private Mat frame = new Mat();
-    private readonly Dictionary<int, PoseFilter> filters = new Dictionary<int, PoseFilter>();
+    private Dictionary<int, PoseFilter> filters = new Dictionary<int, PoseFilter>();
     private List<string> camNames = new List<string>();
 
-    private DetectorParameters detectorParams;
+    public DetectorParameters detectorParams = new DetectorParameters();
     private Dictionary dictionary;
     private Coroutine tickRoutine;
     
@@ -39,8 +40,20 @@ public class TrackingCamera : MonoBehaviour
     public CalibrationState calibrationState = CalibrationState.NotCalibrated;
     public bool startAutomatically = true;
     
+    public static readonly string[] ResolutionOptions = { "320x240", "424x240", "640x360", "640x480", "848x480", "960x540", "1280x720", "1600x896", "1920x1080", "2560x1440", "3840x2160" };
+    public static readonly string[] FpsOptions  = { "5", "10", "15", "20", "24", "25", "30", "48", "60", "90", "120", "144", "240" };
+    
+    public int resolutionIndex = 3;
+    public int fpsIndex = 8;
+    
+    public string resolution;
+    public string fps;
+    
     private string SavedPosKey => $"{gameObject.name}_pos";
     private string SavedRotKey => $"{gameObject.name}_rot";
+    
+    public Action OnStartedCapturing;
+    public Action OnStopedCapturing;
 
     public enum CalibrationState
     {
@@ -59,23 +72,17 @@ public class TrackingCamera : MonoBehaviour
         public Vector3 Pos;
         public Quaternion Rot;
         public float Dot;
-
-        public void Apply()
-        {
-            Target.ApplyPose(Pos, Rot);
-        }
     }
 
     private void Start()
     {
-        if(startAutomatically) StartTracking();
+        if(startAutomatically) StartTracking(sel);
         LoadPos();
     }
 
     void OnEnable()
     {
         ScanCams();
-        detectorParams = new DetectorParameters();
         dictionary = CvAruco.GetPredefinedDictionary(ShardMotionConfig.Dictionary);
         TrackingMind.Register(this);
     }
@@ -170,15 +177,17 @@ public class TrackingCamera : MonoBehaviour
 
     public IReadOnlyList<string> CameraNames => camNames;
 
-    public void StartTracking()
+    public void StartTracking(int selector)
     {
         StopTracking();
+        sel = selector;
         if (WebCamTexture.devices.Length == 0) return;
 
         webCamTexture = new WebCamTexture(WebCamTexture.devices[sel].name, 640, 480, 60);
         webCamTexture.Play();
         isTracking = true;
         tickRoutine = StartCoroutine(RunTick());
+        OnStartedCapturing?.Invoke();
     }
 
     public void StopTracking()
@@ -190,6 +199,7 @@ public class TrackingCamera : MonoBehaviour
             webCamTexture.Stop();
             webCamTexture = null;
         }
+        OnStopedCapturing?.Invoke();
     }
 
     void Update()
@@ -232,65 +242,94 @@ public class TrackingCamera : MonoBehaviour
         }
     }
 
-    void DetectAndEstimate()
+  void DetectAndEstimate()
+{
+    Point2f[][] corners;
+    int[] ids;
+    CvAruco.DetectMarkers(frame, dictionary, out corners, out ids, detectorParams, out _);
+    
+    foreach (var t in ArUcoRegistry.All) t.tracked = false;
+    if (ids == null || ids.Length == 0) return;
+    
+    using Mat k = GetCameraMatrix();
+    using Mat d = GetDistCoeffs();
+
+    if (drawBoxes) CvAruco.DrawDetectedMarkers(frame, corners, ids);
+    
+    List<TrackingRecord> records = new List<TrackingRecord>();
+    for (int i = 0; i < ids.Length; i++)
     {
-        Point2f[][] corners;
-        int[] ids;
+        int id = ids[i];
+        if (!ArUcoRegistry.TryGet(id, out var target)) continue;
         
-        CvAruco.DetectMarkers(frame, dictionary, out corners, out ids, detectorParams, out _);
+        float half = target.markerSize * 0.5f;
         
-        foreach (var t in ArUcoRegistry.All) t.tracked = false;
-
-        if (ids == null || ids.Length == 0) return;
+        using var rvec = new Mat();
+        using var tvec = new Mat();
         
-        using Mat k = GetCameraMatrix();
-        using Mat d = GetDistCoeffs();
-        
-        using Mat rvecs = new Mat();
-        using Mat tvecs = new Mat(); 
-
-        CvAruco.EstimatePoseSingleMarkers(corners, tagSizeMeters, k, d, rvecs, tvecs);
-
-        if (drawBoxes) CvAruco.DrawDetectedMarkers(frame, corners, ids);
-        
-        List<TrackingRecord> records = new List<TrackingRecord>();
-        for (int i = 0; i < ids.Length; i++)
+        var markerPoints = new Point3f[]
         {
-            Vec3d rvecV3 = rvecs.Get<Vec3d>(i);
-            Vec3d tvecV3 = tvecs.Get<Vec3d>(i);
-            
-            using (Mat rvecMat = new Mat(rvecs, new OpenCvSharp.Range(i, i + 1), OpenCvSharp.Range.All))
-            using (Mat tvecMat = new Mat(tvecs, new OpenCvSharp.Range(i, i + 1), OpenCvSharp.Range.All))
-            {
-                if (drawAxes) 
-                    Cv2.DrawFrameAxes(frame, k, d, rvecMat, tvecMat, tagSizeMeters * 0.5f);
-            }
+            new Point3f(-half,  half, 0),
+            new Point3f( half,  half, 0),
+            new Point3f( half, -half, 0),
+            new Point3f(-half, -half, 0)
+        };
 
-            int id = ids[i];
-            if (ArUcoRegistry.TryGet(id, out var target))
-            {   
-                var p = PoseFromOpenCv(transform.localToWorldMatrix, rvecV3, tvecV3);
-                
-                if (!filters.ContainsKey(id)) filters[id] = new PoseFilter(ShardMotionConfig.PositionSmoothing, ShardMotionConfig.RotationSmoothing);
-                p = filters[id].Update(p);
+        using var markerPointsMat = InputArray.Create(markerPoints);
+        using var imgPointsMat = InputArray.Create(corners[i]);
 
-                target.tracked = true;
-                
-                float dot = Vector3.Dot(p.rotation * Vector3.forward, (transform.position - p.position).normalized);
-                TrackingRecord record = new TrackingRecord();
-                record.Target = target;
-                record.Pos = p.position;
-                record.Rot = p.rotation;
-                record.Dot = dot;
-                records.Add(record);
-            
-            }
-        }
+        Cv2.SolvePnP(
+            markerPointsMat, imgPointsMat, k, d,
+            rvec, tvec, false,
+            SolvePnPFlags.Iterative
+        );
         
-        if(calibrationState != CalibrationState.Calibrating) TrackingMind.Commit(this, records);
-        else CalibrationMind.Calibrate(this, records);
+        if (drawAxes)
+            Cv2.DrawFrameAxes(frame, k, d, rvec, tvec, target.markerSize * 0.5f);
+        
+        //var rvecV3 = new Vec3d(rvec.Get<double>(0,0), rvec.Get<double>(1,0), rvec.Get<double>(2,0));
+        //var tvecV3 = new Vec3d(tvec.Get<double>(0,0), tvec.Get<double>(1,0), tvec.Get<double>(2,0));
+        
+        //var p = PoseFromOpenCv(transform.localToWorldMatrix, rvecV3, tvecV3);
+        var p = PoseFromOpenCv(transform.localToWorldMatrix, rvec, tvec);
+        
+        if (!filters.ContainsKey(id)) 
+            filters[id] = new PoseFilter(ShardMotionConfig.PositionSmoothing, ShardMotionConfig.RotationSmoothing);
+        p = filters[id].Update(p);
+        
+        target.tracked = true;
+        
+        float dot = Vector3.Dot(p.rotation * Vector3.forward, (transform.position - p.position).normalized);
+        records.Add(new TrackingRecord { Target = target, Pos = p.position, Rot = p.rotation, Dot = dot });
     }
     
+    if (calibrationState != CalibrationState.Calibrating) TrackingMind.Commit(this, records);
+    else CalibrationMind.Calibrate(this, records);
+}
+    
+    static Pose PoseFromOpenCv(Matrix4x4 camLocalToWorld, Mat rvec, Mat tvec)
+    {
+        using var rm = new Mat();
+        Cv2.Rodrigues(rvec, rm);
+
+        var r = MatToMatrix4x4(rm);
+        var s = Matrix4x4.Scale(new Vector3(-1, -1, 1));
+        var rotationUnity = s * r * s;
+
+        var positionOpenCv = new Vector3(
+            (float)tvec.Get<double>(0, 0), 
+            (float)tvec.Get<double>(1, 0), 
+            (float)tvec.Get<double>(2, 0)
+        );
+        var positionUnity = s.MultiplyPoint3x4(positionOpenCv);
+
+        var local = Matrix4x4.TRS(positionUnity, QuaternionFromMatrix(rotationUnity), Vector3.one);
+        
+        var world = camLocalToWorld * local;
+
+        return new Pose(world.GetColumn(3), QuaternionFromMatrix(world));
+    }
+
     
     static Pose PoseFromOpenCv(Matrix4x4 camLocalToWorld, Vec3d rvec, Vec3d tvec)
     {
@@ -315,6 +354,7 @@ public class TrackingCamera : MonoBehaviour
         return new Pose(world.GetColumn(3), QuaternionFromMatrix(world));
     }
     
+    
     static Matrix4x4 MatToMatrix4x4(Mat m)
     {
         var M = Matrix4x4.identity;
@@ -332,31 +372,7 @@ public class TrackingCamera : MonoBehaviour
 
     static Quaternion QuaternionFromMatrix(Matrix4x4 m)
         => Quaternion.LookRotation(m.GetColumn(2), m.GetColumn(1));
-
-    static Pose PoseFromOpenCv(Transform camTf, Mat rvec, Mat tvec)
-    {
-        using Mat rm = new Mat();
-        Cv2.Rodrigues(rvec, rm);
-
-        Matrix4x4 m = Matrix4x4.identity;
-        for (int r = 0; r < 3; r++)
-            for (int c = 0; c < 3; c++)
-                m[r, c] = (float)rm.At<double>(r, c);
-        
-        Matrix4x4 changeBasis = Matrix4x4.Scale(new UnityEngine.Vector3(1, -1, 1));
-        m = changeBasis * m * changeBasis;
-        
-        Vector3 pos = new Vector3(
-            (float)tvec.At<double>(0, 0), 
-            -(float)tvec.At<double>(0, 1), 
-            (float)tvec.At<double>(0, 2)
-        );
-        
-        Quaternion rot = Quaternion.LookRotation(m.GetColumn(2), m.GetColumn(1));
-
-        return new Pose(camTf.TransformPoint(pos), camTf.rotation * rot);
-    }
-
+    
     void UpdatePreviewTexture()
     {
         using var rgba = new Mat();
@@ -367,16 +383,25 @@ public class TrackingCamera : MonoBehaviour
 }
 
 public class PoseFilter {
-    public float aP, aR;
+    public float positionSmoothing, rotationSmoothing;
     public Pose lastPose;
     private bool initialized = false;
 
-    public PoseFilter(float ap, float ar) { aP = ap; aR = ar; }
+    public PoseFilter(float position, float rotation)
+    {
+        positionSmoothing = position; 
+        rotationSmoothing = rotation;
+    }
 
     public Pose Update(Pose p) {
-        if (!initialized) { lastPose = p; initialized = true; return p; }
-        p.position = Vector3.Lerp(lastPose.position, p.position, aP);
-        p.rotation = Quaternion.Slerp(lastPose.rotation, p.rotation, aR);
+        if (!initialized)
+        {
+            lastPose = p; 
+            initialized = true; 
+            return p;
+        }
+        p.position = Vector3.Lerp(lastPose.position, p.position, positionSmoothing);
+        p.rotation = Quaternion.Slerp(lastPose.rotation, p.rotation, rotationSmoothing);
         lastPose = p;
         return p;
     }
@@ -386,32 +411,45 @@ public class PoseFilter {
 [CustomEditor(typeof(TrackingCamera))]
 public class TrackingCameraEditor : Editor
 {
+    private bool showPreview = true;
     public override void OnInspectorGUI()
     {
         var script = (TrackingCamera)target;
+        
+        EditorGUILayout.BeginHorizontal();
+        GUILayout.FlexibleSpace();
+        if (GUILayout.Button(EditorGUIUtility.IconContent("d_SettingsIcon"), GUILayout.Width(30), GUILayout.Height(20)))
+            TrackingCameraSettings.Open(script);
+        EditorGUILayout.EndHorizontal();
+        
 
-        GUILayout.Space(8);
+        GUILayout.Space(4);
 
         EditorGUILayout.BeginHorizontal();
         script.sel = EditorGUILayout.Popup("Camera", script.sel, script.CameraNames.ToArray());
         if (GUILayout.Button(EditorGUIUtility.IconContent("d_Refresh"), GUILayout.Width(36), GUILayout.Height(20)))
             script.ScanCams();
         EditorGUILayout.EndHorizontal();
+        
+        GUILayout.Space(4);
+        
+        script.resolutionIndex = EditorGUILayout.Popup("Resolution", script.resolutionIndex, TrackingCamera.ResolutionOptions);
+        script.fpsIndex = EditorGUILayout.Popup("FPS", script.fpsIndex, TrackingCamera.FpsOptions);
+        script.startAutomatically = EditorGUILayout.Toggle("Start Automatically", script.startAutomatically);
 
         GUILayout.Space(8);
+        
+        EditorGUILayout.BeginHorizontal();
+        GUILayout.Label("Preview");
+        GUILayout.FlexibleSpace();
+        var eyeIcon = showPreview 
+            ? EditorGUIUtility.IconContent("d_scenevis_visible_hover") 
+            : EditorGUIUtility.IconContent("d_scenevis_hidden_hover");
+        if (GUILayout.Button(eyeIcon, GUILayout.Width(28), GUILayout.Height(18)))
+            showPreview = !showPreview;
+        EditorGUILayout.EndHorizontal();
 
-        if (!script.isTracking)
-        {
-            if (GUILayout.Button("START")) script.StartTracking();
-        }
-        else
-        {
-            if (GUILayout.Button("STOP")) script.StopTracking();
-        }
-
-        GUILayout.Space(8);
-
-        if (script.tex) {
+        if (showPreview && script.tex) {
             float aspect = (float)script.tex.width / script.tex.height;
             Rect r = GUILayoutUtility.GetRect(Screen.width, Screen.width / aspect);
             Matrix4x4 m = GUI.matrix;
@@ -423,13 +461,23 @@ public class TrackingCameraEditor : Editor
 
         GUILayout.Space(8);
 
-        if (GUILayout.Button(new GUIContent("  Camera Calibration", EditorGUIUtility.IconContent("d_SettingsIcon").image), CalibStyle()))
+        if (GUILayout.Button(new GUIContent("  Camera Calibration", EditorGUIUtility.IconContent("d_SettingsIcon").image), ButtonStyle()))
             CamCalibEditor.Open(script);
 
         GUILayout.Space(8);
+        
+        if (!script.isTracking)
+        {
+            if (GUILayout.Button(new GUIContent("  Manual START", EditorGUIUtility.IconContent("PlayButton").image), ButtonStyle())) script.StartTracking(script.sel);
+        }
+        else
+        {
+            if (GUILayout.Button(new GUIContent("  Manual STOP", EditorGUIUtility.IconContent("PreMatQuad").image), ButtonStyle())) script.StopTracking();
+        }
+
     }
 
-    GUIStyle CalibStyle()
+    GUIStyle ButtonStyle()
     {
         var s = new GUIStyle(GUI.skin.button);
         s.fixedHeight = 60;

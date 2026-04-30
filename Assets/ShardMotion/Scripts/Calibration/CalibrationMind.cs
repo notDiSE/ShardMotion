@@ -42,10 +42,9 @@ public static class CalibrationMind
                 if (points.TryGetValue(bestRecord.Target, out GameObject inversePoint) &&
                     calibratedPoints.TryGetValue(cam, out GameObject calibratedPoint))
                 {
-                    Quaternion forwardRotation = ArUcoTarget.ToForwardRotation(bestRecord.Target.forwardAxis);
-                    if (bestRecord.Target.forwardAxis == MarkerAxis.X_NEG ||
-                        bestRecord.Target.forwardAxis == MarkerAxis.X_POS)
-                        forwardRotation *= Quaternion.Euler(0, 180, 0);
+                    //Quaternion forwardRotation = Quaternion.Euler(bestRecord.Target.rotationOffset);
+                    Quaternion forwardRotation = Quaternion.Inverse(Quaternion.Euler(bestRecord.Target.rotationOffset)) * Quaternion.Euler(0, 0, 180);
+                    
                     var pos = forwardRotation * -bestRecord.Target.positionOffset;
                     cam.transform.SetPositionAndRotation(pos, forwardRotation);
 
@@ -78,7 +77,7 @@ public static class CalibrationMind
                         );
                     }
 
-                    cam.calibratedValues++;
+                    //cam.calibratedValues++;
 
                     float baseProgress = Mathf.Clamp01(cam.calibratedValues / 100f) * 0.8f;
                     float progress = baseProgress;
@@ -117,7 +116,7 @@ public static class CalibrationMind
                         cam.enabled = false;
                     }
 
-                    cam.calibratedAmountDebug = Mathf.Max(cam.calibratedAmountDebug, progress); // cannot go backwards
+                    cam.calibratedAmountDebug = Mathf.Max(cam.calibratedAmountDebug, progress);
 
                 }
             }
@@ -201,9 +200,9 @@ public static class CalibrationMind
         go.transform.SetParent(root.transform);
         ArUcoTarget forward = go.AddComponent<ArUcoTarget>();
         forward.markerId = calibrationDevice.forwardID;
-        forward.forwardAxis = MarkerAxis.Z_POS;
-        forward.gizmoMarkerSize = calibrationDevice.codeSize;
-        forward.positionOffset = new Vector3(0,0,-calibrationDevice.cubeSize/2);
+        forward.markerSize = calibrationDevice.codeSize;
+        forward.rotationOffset = new Vector3(0, 0, 0);
+        forward.positionOffset = new Vector3(0, 0, -calibrationDevice.cubeSize/2);
         //forward.Reregister();
         ArUcoRegistry.Register(forward);
         
@@ -211,9 +210,9 @@ public static class CalibrationMind
         go.transform.SetParent(root.transform);
         ArUcoTarget right = go.AddComponent<ArUcoTarget>();
         right.markerId = calibrationDevice.rightID;
-        right.forwardAxis = MarkerAxis.X_POS;
-        right.gizmoMarkerSize = calibrationDevice.codeSize;
-        right.positionOffset = new Vector3(0,0,-calibrationDevice.cubeSize/2);
+        right.markerSize = calibrationDevice.codeSize;
+        right.rotationOffset = new Vector3(0, -90, 0);
+        right.positionOffset = new Vector3(-calibrationDevice.cubeSize/2,0,0);
         //right.Reregister();
         ArUcoRegistry.Register(right);
         
@@ -221,9 +220,9 @@ public static class CalibrationMind
         go.transform.SetParent(root.transform);
         ArUcoTarget backwards = go.AddComponent<ArUcoTarget>();
         backwards.markerId = calibrationDevice.backwardID;
-        backwards.forwardAxis = MarkerAxis.Z_NEG;
-        backwards.gizmoMarkerSize = calibrationDevice.codeSize;
-        backwards.positionOffset = new Vector3(0,0,-calibrationDevice.cubeSize/2);
+        backwards.markerSize = calibrationDevice.codeSize;
+        backwards.rotationOffset = new Vector3(0, 180, 0);
+        backwards.positionOffset = new Vector3(0, 0, calibrationDevice.cubeSize/2);
         //backwards.Reregister();
         ArUcoRegistry.Register(backwards);
         
@@ -231,9 +230,9 @@ public static class CalibrationMind
         go.transform.SetParent(root.transform);
         ArUcoTarget left = go.AddComponent<ArUcoTarget>();
         left.markerId = calibrationDevice.leftID;
-        left.forwardAxis = MarkerAxis.X_NEG;
-        left.gizmoMarkerSize = calibrationDevice.codeSize;
-        left.positionOffset = new Vector3(0,0,-calibrationDevice.cubeSize/2);
+        left.markerSize = calibrationDevice.codeSize;
+        left.rotationOffset = new Vector3(0, 90, 0);
+        left.positionOffset = new Vector3(calibrationDevice.cubeSize/2,0,0);
         //left.Reregister();
         ArUcoRegistry.Register(left);
     }

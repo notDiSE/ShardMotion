@@ -1,48 +1,17 @@
 using UnityEngine;
-public enum MarkerAxis
-{
-    X_POS,
-    X_NEG,
-    Y_POS,
-    Y_NEG,
-    Z_POS,
-    Z_NEG
-}
-
 public class ArUcoTarget : MonoBehaviour
 {
     public bool tracked = false;
     public int markerId;
-    public MarkerAxis forwardAxis = MarkerAxis.Z_POS;
+    public float markerSize = 0.08f;
     public Vector3 rotationOffset = Vector3.zero;
     public Vector3 positionOffset;
-
-    public float gizmoMarkerSize = 0.08f;
+    
     public float gizmoArrowLength = 0.12f;
     public Color gizmoColor = new Color(1f, 0.2f, 0.2f, 1f);
     
     //void OnEnable() => ArUcoRegistry.Register(this);
     void OnDisable() => ArUcoRegistry.Unregister(this);
-
-    public static Quaternion ToForwardRotation(MarkerAxis axis)
-    {
-        
-        return axis switch
-        {
-            MarkerAxis.Z_POS => Quaternion.Euler(0, 0, 0),
-            MarkerAxis.Z_NEG => Quaternion.Euler(0, 180, 0),
-
-            MarkerAxis.X_POS => Quaternion.Euler(0, -90, 0),
-            MarkerAxis.X_NEG => Quaternion.Euler(0, 90, 0),
-
-            MarkerAxis.Y_POS => Quaternion.Euler(90, 0, 0),
-            MarkerAxis.Y_NEG => Quaternion.Euler(-90, 0, 0),
-
-            _ => Quaternion.identity
-        };
-        
-    
-    }
     
     public (Vector3 pos, Quaternion rot) CorrectedPose(Vector3 rawPos, Quaternion rawRot)
     {
@@ -65,30 +34,14 @@ public class ArUcoTarget : MonoBehaviour
         var pos = transform.position - transform.rotation * positionOffset;
         return (pos, rot);
     }
-
-    /*
-    public void ApplyPose(Vector3 pos, Quaternion rot)
-    {
-        var correctedRot = rot * ToForwardRotation(forwardAxis);
-        Vector3 trueOffset = positionOffset;
-        if (forwardAxis == MarkerAxis.Z_NEG) trueOffset *= -1;
-        if (forwardAxis == MarkerAxis.X_NEG) trueOffset = new Vector3(-positionOffset.z, positionOffset.y, positionOffset.x);
-        if (forwardAxis == MarkerAxis.X_POS) trueOffset = new Vector3(positionOffset.z, positionOffset.y, positionOffset.x);
-        //var correctedPos = correctedRot * positionOffset;
-        //var correctedPos =  trueOffset;
-        var correctedPos =  pos + correctedRot * trueOffset;
-        //var correctedPos =  correctedRot * trueOffset;
-
-        transform.SetPositionAndRotation(correctedPos, correctedRot);
-    }
-    */
+    
     
 #if UNITY_EDITOR
     void OnDrawGizmosSelected()
     {
         var (markerPos, markerRot) = InverseMarkerPose();
 
-        var half = gizmoMarkerSize * 0.5f;
+        var half = markerSize * 0.5f;
         var r = markerRot * Vector3.right;
         var u = markerRot * Vector3.up;
         var f = markerRot * Vector3.forward;
@@ -111,7 +64,7 @@ public class ArUcoTarget : MonoBehaviour
         );
 
         UnityEditor.Handles.Label(
-            markerPos + u * (gizmoMarkerSize * 0.6f),
+            markerPos,
             $"ID: {markerId}"
         );
     }

@@ -100,7 +100,6 @@ public class ControlPanel : EditorWindow
         }
         UnregisterTargets();
         calibrating = true;
-        PlayerPrefs.DeleteAll();
         CalibrationMind.CreateTarget(calibrationDevice);
     }
 

@@ -27,7 +27,12 @@ public static class TrackingMind
     public static void Commit(TrackingCamera cam, List<TrackingCamera.TrackingRecord> records)
     {
         if (!committedCameras.Add(cam))
+        {
+            Evaluate();
+            Commit(cam,records);
             return;
+        }
+            
 
         if(records != null) commitedRecords.AddRange(records);
         commited++;

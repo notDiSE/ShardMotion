@@ -14,8 +14,6 @@ public class CalibrationDevice : ScriptableObject
     public int backwardID = 2;
     public int leftID = 3;
     
-    [Header("additional setup")]
-    public Vector3 UpVector = new Vector3(0, 1, 0);
 }
 
 

@@ -11,17 +11,17 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 10f2b27bdcb2042478481c19cbf4e8ea, type: 3}
   m_Name: CamCalib
-  m_EditorClassIdentifier: Assembly-CSharp::CamCalib
+  m_EditorClassIdentifier: ShardMotion::CamCalib
   K:
-  - 1663
-  - 0
-  - 960
-  - 0
-  - 1663
-  - 540
   - 0
   - 0
-  - 1
+  - 0
+  - 0
+  - 0
+  - 0
+  - 0
+  - 0
+  - 0
   Dist:
   - 0
   - 0

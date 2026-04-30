@@ -264,8 +264,8 @@ public class CamCalibEditor : EditorWindow
 
             if (!found)
             {
-                Cv2.ImWrite(Application.temporaryCachePath + $"/calib_fail_{successCount}.bmp", gray);
-                Debug.Log("Saved to: " + Application.temporaryCachePath + $"/calib_fail_{successCount}.bmp");
+                //Cv2.ImWrite(Application.temporaryCachePath + $"/calib_fail_{successCount}.bmp", gray);
+                //Debug.Log("Saved to: " + Application.temporaryCachePath + $"/calib_fail_{successCount}.bmp");
                 //Cv2.ImWrite(Application.temporaryCachePath + $"/calib_fail_{successCount}.png", gray);
                 continue;
             }
