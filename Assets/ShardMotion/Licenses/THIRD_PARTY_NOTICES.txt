@@ -1,0 +1,12 @@
+=== OpenCvSharp ===
+Copyright (c) 2008 shimat
+Licensed under the Apache License, Version 2.0
+https://github.com/shimat/opencvsharp/blob/main/LICENSE
+
+=== OpenCV ===
+Copyright (C) 2000-2024, Intel Corporation, all rights reserved.
+Copyright (C) 2009-2011, Willow Garage Inc., all rights reserved.
+Licensed under the Apache License, Version 2.0
+https://opencv.org/license/
+
+Full Apache 2.0 License text: https://www.apache.org/licenses/LICENSE-2.0
