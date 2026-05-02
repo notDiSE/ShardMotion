@@ -1,55 +1,58 @@
 using UnityEngine;
 
-public class MotionPredictor
+namespace ShardMotion
 {
-    public Pose Pose { get; private set; }
-    Vector3 v;
-    Vector3 w;
-    bool has;
-    float alphaPos, alphaRot;
-    float lastT;
-
-    public MotionPredictor(float alphaPos = 0.25f, float alphaRot = 0.25f)
+    public class MotionPredictor
     {
-        this.alphaPos = Mathf.Clamp01(alphaPos);
-        this.alphaRot = Mathf.Clamp01(alphaRot);
-    }
+        public Pose Pose { get; private set; }
+        Vector3 v;
+        Vector3 w;
+        bool has;
+        float alphaPos, alphaRot;
+        float lastT;
 
-    public void UpdateMeasured(Pose m, float t)
-    {
-        if (!has)
+        public MotionPredictor(float alphaPos = 0.25f, float alphaRot = 0.25f)
         {
-            Pose = m; v = Vector3.zero; w = Vector3.zero; has = true; lastT = t; return;
+            this.alphaPos = Mathf.Clamp01(alphaPos);
+            this.alphaRot = Mathf.Clamp01(alphaRot);
         }
-        float dt = Mathf.Max(1e-4f, t - lastT);
 
-        var dp = (m.position - Pose.position) / dt;
-        v = Vector3.Lerp(v, dp, 0.5f);
+        public void UpdateMeasured(Pose m, float t)
+        {
+            if (!has)
+            {
+                Pose = m; v = Vector3.zero; w = Vector3.zero; has = true; lastT = t; return;
+            }
+            float dt = Mathf.Max(1e-4f, t - lastT);
 
-        var dq = m.rotation * Quaternion.Inverse(Pose.rotation);
-        dq.ToAngleAxis(out float ang, out Vector3 axis);
-        if (ang > 180f) ang -= 360f;
-        var av = axis * Mathf.Deg2Rad * (ang / dt);
-        w = Vector3.Lerp(w, av, 0.5f);
+            var dp = (m.position - Pose.position) / dt;
+            v = Vector3.Lerp(v, dp, 0.5f);
 
-        Pose = new Pose(
-            Vector3.Lerp(Pose.position, m.position, alphaPos),
-            Quaternion.Slerp(Pose.rotation, m.rotation, alphaRot)
-        );
+            var dq = m.rotation * Quaternion.Inverse(Pose.rotation);
+            dq.ToAngleAxis(out float ang, out Vector3 axis);
+            if (ang > 180f) ang -= 360f;
+            var av = axis * Mathf.Deg2Rad * (ang / dt);
+            w = Vector3.Lerp(w, av, 0.5f);
 
-        lastT = t;
-    }
+            Pose = new Pose(
+                Vector3.Lerp(Pose.position, m.position, alphaPos),
+                Quaternion.Slerp(Pose.rotation, m.rotation, alphaRot)
+            );
 
-    public Pose Predict(float t)
-    {
-        if (!has) return Pose;
-        float dt = Mathf.Max(0f, t - lastT);
-        var p = Pose.position + v * dt;
+            lastT = t;
+        }
 
-        float ang = w.magnitude * dt;
-        Quaternion dq = ang > 1e-6f ? Quaternion.AngleAxis(ang * Mathf.Rad2Deg, w.normalized) : Quaternion.identity;
-        var r = dq * Pose.rotation;
+        public Pose Predict(float t)
+        {
+            if (!has) return Pose;
+            float dt = Mathf.Max(0f, t - lastT);
+            var p = Pose.position + v * dt;
 
-        return new Pose(p, r);
+            float ang = w.magnitude * dt;
+            Quaternion dq = ang > 1e-6f ? Quaternion.AngleAxis(ang * Mathf.Rad2Deg, w.normalized) : Quaternion.identity;
+            var r = dq * Pose.rotation;
+
+            return new Pose(p, r);
+        }
     }
 }
