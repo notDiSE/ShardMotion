@@ -1,76 +1,78 @@
-using System;
 using UnityEditor;
 using UnityEngine;
 
-public class TestWriteToAnim : MonoBehaviour
+namespace ShardMotion.Animation
 {
-    public Transform root;
-    public Transform target;
+    public class TestWriteToAnim : MonoBehaviour
+    {
+        public Transform root;
+        public Transform target;
 #if UNITY_EDITOR
-    public AnimationClip clip;
-    public string assetPath = "Assets/GeneratedClip.anim";
-    public bool loop;
-    public float time;
+        public AnimationClip clip;
+        public string assetPath = "Assets/GeneratedClip.anim";
+        public bool loop;
+        public float time;
 
-    void Update()
-    {
-        time += Time.deltaTime;
-        if (Input.GetKeyDown(KeyCode.C))
+        void Update()
         {
-            CreateAnimationClip();
+            time += Time.deltaTime;
+            if (Input.GetKeyDown(KeyCode.C))
+            {
+                CreateAnimationClip();
+            }
+
+            if (Input.GetKeyDown(KeyCode.R))
+            {
+                ResetTimeline();
+            }
+
+            if (Input.GetKeyDown(KeyCode.K))
+            {
+                Keyframe();
+            }
         }
 
-        if (Input.GetKeyDown(KeyCode.R))
+        public void ResetTimeline()
         {
-            ResetTimeline();
+            time = 0;
         }
 
-        if (Input.GetKeyDown(KeyCode.K))
+        public void Keyframe()
         {
-            Keyframe();
+            if (!clip) return;
+            var lp = target.localPosition;
+            var le = target.localEulerAngles;
+            Debug.Log(lp.x + ", " + le.x + ", " + le.y);
+            //WriteAnim.AddKey(clip, root, target, lp, le, time);
+            AssetDatabase.SaveAssets();
         }
+
+        public void CreateAnimationClip()
+        {
+            if (!clip)
+                clip = WriteAnim.CreateClipAsset(assetPath, loop);
+        }
+#endif
     }
 
-    public void ResetTimeline()
+#if UNITY_EDITOR
+    [CustomEditor(typeof(TestWriteToAnim))]
+    public class TestWriteToAnimEditor : Editor
     {
-        time = 0;
-    }
+        TestWriteToAnim targetScript;
 
-    public void Keyframe()
-    {
-        if (!clip) return;
-        var lp = target.localPosition;
-        var le = target.localEulerAngles;
-        Debug.Log(lp.x + ", " + le.x + ", " + le.y);
-        //WriteAnim.AddKey(clip, root, target, lp, le, time);
-        AssetDatabase.SaveAssets();
-    }
+        public void Awake()
+        {
+            targetScript = (TestWriteToAnim)target;
+        }
 
-    public void CreateAnimationClip()
-    {
-        if (!clip)
-            clip = WriteAnim.CreateClipAsset(assetPath, loop);
+        public override void OnInspectorGUI()
+        {
+            base.OnInspectorGUI();
+            if(GUILayout.Button("Create Animation Clip")) targetScript.CreateAnimationClip();
+            if(GUILayout.Button("Reset Timeline")) targetScript.ResetTimeline();
+            if(GUILayout.Button("Keyframe")) targetScript.Keyframe();
+        }
     }
 #endif
 }
-
-#if UNITY_EDITOR
-[CustomEditor(typeof(TestWriteToAnim))]
-public class TestWriteToAnimEditor : Editor
-{
-    TestWriteToAnim targetScript;
-
-    public void Awake()
-    {
-        targetScript = (TestWriteToAnim)target;
-    }
-
-    public override void OnInspectorGUI()
-    {
-        base.OnInspectorGUI();
-        if(GUILayout.Button("Create Animation Clip")) targetScript.CreateAnimationClip();
-        if(GUILayout.Button("Reset Timeline")) targetScript.ResetTimeline();
-        if(GUILayout.Button("Keyframe")) targetScript.Keyframe();
-    }
-}
-#endif
