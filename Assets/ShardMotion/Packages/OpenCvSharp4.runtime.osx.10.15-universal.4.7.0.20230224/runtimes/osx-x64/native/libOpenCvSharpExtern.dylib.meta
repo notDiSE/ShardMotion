@@ -26,7 +26,7 @@ PluginImporter:
         Exclude GameCoreXboxOne: 1
         Exclude Kepler: 1
         Exclude Linux64: 1
-        Exclude OSXUniversal: 0
+        Exclude OSXUniversal: 1
         Exclude PS4: 1
         Exclude PS5: 1
         Exclude QNX: 1
@@ -49,15 +49,15 @@ PluginImporter:
     Linux64:
       enabled: 0
       settings:
-        CPU: x86_64
+        CPU: None
     OSXUniversal:
-      enabled: 1
+      enabled: 0
       settings:
         CPU: x86_64
     Win:
       enabled: 0
       settings:
-        CPU: x86
+        CPU: None
     Win64:
       enabled: 0
       settings:
