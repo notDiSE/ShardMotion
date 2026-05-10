@@ -1,7 +1,7 @@
 using System;
 using UnityEngine;
 
-public class Balloon : MonoBehaviour
+public class SubMarine : MonoBehaviour
 {
 
     public Action OnCollided;

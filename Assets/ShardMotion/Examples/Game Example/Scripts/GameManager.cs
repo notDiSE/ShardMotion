@@ -67,7 +67,7 @@ public class GameManager : MonoBehaviour
     {
         spawnedBalloon = Instantiate(balloonPrefab);
         ArUcoRegistry.Register(spawnedBalloon);
-        spawnedBalloon.GetComponent<Balloon>().OnCollided += GameOver;
+        spawnedBalloon.GetComponent<SubMarine>().OnCollided += GameOver;
     }
     
     void DespawnBalloon()
