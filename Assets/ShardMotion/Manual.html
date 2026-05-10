@@ -1,25 +1,186 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>To Be Done</title>
-<style>
-  html, body {
-    margin: 0;
-    height: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-family: sans-serif;
-    background: #fff;
-  }
-  h1 {
-    font-size: 15vw;
-    margin: 0;
-  }
-</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ShardMotion – Manual</title>
+  <style>
+    body {
+      font-family: Georgia, serif;
+      max-width: 760px;
+      margin: 40px auto;
+      padding: 0 20px;
+      font-size: 16px;
+      line-height: 1.6;
+      color: #d4d4d4;
+      background: #1a1a1a;
+    }
+    h1 { font-size: 2em; margin-bottom: 0.2em; color: #f0f0f0; }
+    h2 { font-size: 1.3em; margin-top: 2em; border-bottom: 1px solid #444; padding-bottom: 4px; color: #e8e8e8; }
+    h3 { font-size: 1.05em; margin-top: 1.4em; color: #e0e0e0; }
+    code { background: #2d2d2d; color: #c9d1d9; padding: 1px 5px; font-family: monospace; font-size: 0.95em; border: 1px solid #3a3a3a; }
+    table { border-collapse: collapse; width: 100%; margin-top: 0.5em; }
+    th, td { border: 1px solid #444; padding: 6px 10px; text-align: left; }
+    th { background: #252525; color: #e0e0e0; }
+    ul, ol { padding-left: 1.4em; }
+    li { margin-bottom: 0.3em; }
+    .note { background: #2a2500; border-left: 3px solid #c9a000; padding: 8px 12px; margin: 1em 0; color: #d4c57a; }
+    a { color: #7ab0d4; }
+  </style>
 </head>
 <body>
-  <h1>TO BE DONE</h1>
+
+<h1>ShardMotion – Manual</h1>
+<div class="note">ShardMotion is a Unity plugin that tracks the movement of physical objects using printed ArUco markers and one or more webcams. No specialized hardware or external software is required.</div>
+
+<h2>What You Need</h2>
+<ul>
+  <li>A Unity project with ShardMotion installed</li>
+  <li>A webcam connected to your computer</li>
+  <li>Printed ArUco markers - any printer, plain paper is fine, but make sure, the printed marker has a white border around the code, that is at least one grid cell wide - otherwise the tracking could be unstable</li>
+</ul>
+
+<h2>First Launch</h2>
+<div class="note">When you open a Unity project with ShardMotion for the first time, a setup window appears automatically. Click the button to create the plugin's settings file. The plugin will not work without it.</div>
+<p>The setup window can be open at any time using Tools > ShardMotion > Quick Setup</p>
+
+<h2>Basic Setup</h2>
+
+<h3>1. Add a Camera</h3>
+<p>Create a new GameObject (or use an existing Unity Camera) and add the <code>TrackingCamera</code> component to it.</p>
+<p>In the Inspector, select which physical camera to use from the dropdown menu.</p>
+<p>Two startup options:</p>
+<ul>
+  <li><strong>Start Automatically</strong> – the camera starts by itself when Play mode begins. Enable this before entering Play mode.</li>
+  <li>Manual start – leave it off and start the camera from the Control Panel or from your own script during Play mode.</li>
+</ul>
+
+<h3>2. Add a Tracked Object</h3>
+<p>Add the <code>ArUcoTarget</code> component to the virtual object you want to move.</p>
+<p>Configure it:</p>
+<ul>
+  <li><strong>Marker ID</strong> – the number printed on the physical marker. Must match exactly.</li>
+  <li><strong>Marker Size</strong> – physical size of the marker in meters (e.g. <code>0.05</code> for a 5 cm marker).</li>
+  <li><strong>Position Offset</strong> – offset from the object's pivot point if the marker is not centered on the object.</li>
+  <li><strong>Rotation Offset</strong> – rotation of the marker relative to the object's orientation.</li>
+</ul>
+<p>A visual preview of the marker placement is shown in the Scene view to help you align it correctly.</p>
+<p>If you want the target to register itself automatically when Play mode starts, enable <strong>Auto Register</strong>.</p>
+
+<h2>Starting Tracking</h2>
+
+<p>Everything below happens inside <strong>Play mode</strong>.</p>
+
+<p>If you have enabled <strong>Start Automatically</strong> on your cameras and <strong>Auto Register</strong> on your targets, tracking starts on its own — nothing else is needed.</p>
+
+<p>If you are starting things manually:</p>
+<ol>
+  <li>Open the Control Panel: <strong>ShardMotion → Control Panel</strong></li>
+  <li>Click <strong>Start All Cameras</strong> (or start individual cameras)</li>
+  <li>Click <strong>Register All Targets</strong></li>
+</ol>
+
+<p>Once running, the <code>TrackingCamera</code> Inspector shows a live preview. Detected markers are highlighted with their ID and orientation arrows.</p>
+
+<h2>Camera Calibration (Recommended)</h2>
+
+<p>Camera calibration improves tracking accuracy by measuring the lens properties of your camera. It only needs to be done once per physical camera.</p>
+
+<div class="note">Camera calibration is the <strong>only step that does not require Play mode</strong>. Everything else in this manual happens in Play mode.</div>
+
+<ol>
+  <li>In the <code>TrackingCamera</code> Inspector, click <strong>Camera Calibration</strong>.</li>
+  <li>A calibration window opens with a live camera preview.</li>
+  <li>Hold a chessboard pattern in front of the camera (included with the plugin). Move it to different positions and angles.</li>
+  <li>Take at least 5 photos using the <strong>Take Snapshot</strong> button. More photos from varied angles = better result.</li>
+  <li>Click <strong>Finish Calibration</strong>. The parameters are saved automatically.</li>
+</ol>
+
+<p>You do not need to redo calibration if the camera is moved to a new position.</p>
+
+<h2>Multiple Cameras</h2>
+
+<p>Add a <code>TrackingCamera</code> component for each physical camera. When using more than one camera, you must calibrate the spatial positions of the cameras so the plugin knows where they are relative to each other. This is done in Play mode.</p>
+
+<h3>Calibration Cube</h3>
+<p>You need a physical cube with ArUco markers on each of its four sides. You can make one from any rigid material by attaching printed markers. A 3D-printable version is included with the plugin.</p>
+
+<h3>Setting Up the CalibrationDevice</h3>
+<ol>
+  <li>In your Unity project, create or locate the <code>CalibrationDevice</code> ScriptableObject.</li>
+  <li>Set the marker ID for each face of the cube.</li>
+  <li>Set <strong>Cube Size</strong> – the physical side length of the cube in meters.</li>
+  <li>Set <strong>Marker Size</strong> – the physical size of the markers on the cube in meters.</li>
+</ol>
+
+<h3>Running Space Calibration</h3>
+<p>Do this in <strong>Play mode</strong>, after cameras are started.</p>
+<ol>
+  <li>Place the calibration cube in the center of the tracking area.</li>
+  <li>Open the Control Panel and select the <code>CalibrationDevice</code> in the designated field.</li>
+  <li>Click <strong>Start Calibration</strong>.</li>
+  <li>Wait for all cameras to show green (calibration successful). Yellow = in progress, red = failed.</li>
+  <li>Once all cameras are green, you can remove the cube.</li>
+</ol>
+
+<p>The cube's position becomes the origin point (0, 0, 0) of the tracking space.</p>
+
+<h2>Recording Motion to Animation</h2>
+
+<ol>
+  <li>In the Scene hierarchy, place all <code>ArUcoTarget</code> objects you want to record under one parent GameObject.</li>
+  <li>Add the <code>Record</code> component to that parent object.</li>
+  <li>In Play mode, start tracking, then start recording.</li>
+  <li>When done, stop recording. You will be prompted to enter a file name and path. The animation clip is saved to your Assets folder.</li>
+</ol>
+
+<h2>Global Settings</h2>
+
+<p>The plugin settings are stored in a ScriptableObject file inside the <code>Resources/</code> folder. Three values:</p>
+
+<table>
+  <tr><th>Setting</th><th>What it does</th></tr>
+  <tr><td>Dictionary</td><td>The ArUco marker dictionary (determines marker grid size). Must match the markers you have printed. When in doubt, leave the default.</td></tr>
+  <tr><td>Position Smoothing</td><td>Smooths out jitter in position (0–1). Higher = smoother but slower response.</td></tr>
+  <tr><td>Rotation Smoothing</td><td>Same as above, but for rotation.</td></tr>
+</table>
+
+<p>These settings are global — they apply to all cameras and targets in the scene. All cameras must use the same dictionary, otherwise tracking data will be inconsistent across cameras.</p>
+
+<table>
+  <tr><td><code>TrackingCamera</code></td><td>Add to any GameObject (ideally a Unity Camera). Reads from a physical webcam and detects markers.</td></tr>
+  <tr><td><code>ArUcoTarget</code></td><td>Add to the virtual object you want to track. Links a marker ID to that object.</td></tr>
+  <tr><td><code>Record</code></td><td>Add to the parent of tracked objects. Records their movement into a Unity animation clip.</td></tr>
+  <tr><td><code>CalibrationDevice</code></td><td>ScriptableObject describing the calibration cube. Required only when using multiple cameras.</td></tr>
+</table>
+
+<h2>Troubleshooting</h2>
+
+<h3>Marker is not detected</h3>
+<ul>
+  <li>Check that the printed Marker has wide enough white border around the code.</li>
+  <li>Check that the Marker ID in <code>ArUcoTarget</code> matches the printed marker.</li>
+  <li>Check that the Dictionary setting matches the type of markers you printed.</li>
+  <li>Improve lighting — the marker needs to be clearly visible and not overexposed.</li>
+  <li>Make sure the target is registered (either via Auto Register or manually from the Control Panel).</li>
+</ul>
+
+<h3>Object shakes or jitters</h3>
+<ul>
+  <li>Increase Position Smoothing and Rotation Smoothing in the plugin settings.</li>
+</ul>
+
+<h3>Camera does not start</h3>
+<ul>
+  <li>Make sure the camera is connected and not in use by another application.</li>
+  <li>In the <code>TrackingCamera</code> Inspector, re-select the camera from the dropdown.</li>
+</ul>
+
+<h3>Space calibration fails or turns red</h3>
+<ul>
+  <li>Make sure the calibration cube is visible to the camera during calibration.</li>
+  <li>Make sure the CalibrationDevice settings match your physical cube exactly (marker IDs, sizes).</li>
+</ul>
+
 </body>
 </html>
