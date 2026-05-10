@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
+using ShardMotion.Settings;
 using UnityEngine;
 
 namespace ShardMotion
@@ -10,6 +11,7 @@ namespace ShardMotion
         static HashSet<TrackingCamera> cameras = new HashSet<TrackingCamera>();
         static List<TrackingCamera.TrackingRecord> commitedRecords = new List<TrackingCamera.TrackingRecord>();
         static HashSet<TrackingCamera> committedCameras = new HashSet<TrackingCamera>();
+        static Dictionary<GameObject, PoseFilter> filters = new Dictionary<GameObject, PoseFilter>();
         static int commited = 0;
         static float lerpBorder = 0.5f;
 
@@ -75,7 +77,11 @@ namespace ShardMotion
         
             foreach (var record in perTarget)
             {
-                record.Key.transform.SetPositionAndRotation(record.Value.Item1, record.Value.Item2);
+                if (!filters.ContainsKey(record.Key)) 
+                    filters[record.Key] = new PoseFilter(ShardMotionConfig.PositionSmoothing, ShardMotionConfig.RotationSmoothing);
+                Pose p = filters[record.Key].Update(record.Value.Item1, record.Value.Item2);
+                
+                record.Key.transform.SetPositionAndRotation(p.position, p.rotation);
             }
         
             /*

@@ -14,21 +14,25 @@ using Rect = UnityEngine.Rect;
 
 namespace ShardMotion
 {
-
+    [Icon("Assets/ShardMotion/Editor/Resources/icon.png")]
+    [DisallowMultipleComponent]
+    [AddComponentMenu("ShardMotion/TrackingCamera")]
     public class TrackingCamera : MonoBehaviour
     {
         [Header("Webcam Settings")] public int sel;
         public bool isTracking;
-        private WebCamTexture webCamTexture;
+        public WebCamTexture webCamTexture;
         private Color32[] pixelData;
         public Texture2D tex;
 
         [Header("ArUco Settings")]
         public bool drawAxes = true;
         public bool drawBoxes = true;
+        public DebugView debugView = DebugView.Normal;
 
         private Mat frame = new Mat();
-        private Dictionary<int, PoseFilter> filters = new Dictionary<int, PoseFilter>();
+        private Queue<(float timestamp, List<TrackingRecord> records)> buffer  = new Queue<(float, List<TrackingRecord>)>();
+        
         private List<string> camNames = new List<string>();
 
         public DetectorParamsData savedDetectorParams = new DetectorParamsData();
@@ -44,15 +48,15 @@ namespace ShardMotion
         public Quaternion calibratedRotAverage;
         public CalibrationState calibrationState = CalibrationState.NotCalibrated;
         public bool startAutomatically = true;
+        public bool flipX = false;
     
         public static readonly string[] ResolutionOptions = { "320x240", "424x240", "640x360", "640x480", "848x480", "960x540", "1280x720", "1600x896", "1920x1080", "2560x1440", "3840x2160" };
         public static readonly string[] FpsOptions  = { "5", "10", "15", "20", "24", "25", "30", "48", "60", "90", "120", "144", "240" };
     
         public int resolutionIndex = 3;
         public int fpsIndex = 8;
-    
-        public string resolution;
-        public string fps;
+
+        public float delay = 0;
     
         private string SavedPosKey => $"{gameObject.name}_pos";
         private string SavedRotKey => $"{gameObject.name}_rot";
@@ -66,6 +70,14 @@ namespace ShardMotion
             Calibrating,
             Calibrated,
             Failed
+        }
+        
+        public enum DebugView
+        {
+            Normal,
+            Grayscale,
+            AdaptiveThreshold,
+            Edges
         }
 
 //public int 
@@ -237,6 +249,7 @@ namespace ShardMotion
         
             ProcessFrame();
             DetectAndEstimate();
+            TryCommit();
             UpdatePreviewTexture();
         }
 
@@ -301,27 +314,42 @@ namespace ShardMotion
                 //var p = PoseFromOpenCv(transform.localToWorldMatrix, rvecV3, tvecV3);
                 var p = PoseFromOpenCv(transform.localToWorldMatrix, rvec, tvec);
         
+                /*
                 if (!filters.ContainsKey(id)) 
                     filters[id] = new PoseFilter(ShardMotionConfig.PositionSmoothing, ShardMotionConfig.RotationSmoothing);
                 p = filters[id].Update(p);
+                */
         
                 target.tracked = true;
         
                 float dot = Vector3.Dot(p.rotation * Vector3.forward, (transform.position - p.position).normalized);
                 records.Add(new TrackingRecord { Target = target, Pos = p.position, Rot = p.rotation, Dot = dot });
             }
-    
-            if (calibrationState != CalibrationState.Calibrating) TrackingMind.Commit(this, records);
+
+            if (calibrationState != CalibrationState.Calibrating)
+            {
+                buffer.Enqueue((Time.realtimeSinceStartup + delay, records));
+                //TryCommit();
+            }
             else CalibrationMind.Calibrate(this, records);
         }
+
+        void TryCommit()
+        {
+            while (buffer.Count > 0 && buffer.Peek().timestamp <= Time.realtimeSinceStartup)
+            {
+                var (_, records) = buffer.Dequeue();
+                TrackingMind.Commit(this, records);
+            }
+        }
     
-        static Pose PoseFromOpenCv(Matrix4x4 camLocalToWorld, Mat rvec, Mat tvec)
+        Pose PoseFromOpenCv(Matrix4x4 camLocalToWorld, Mat rvec, Mat tvec)
         {
             using var rm = new Mat();
             Cv2.Rodrigues(rvec, rm);
 
             var r = MatToMatrix4x4(rm);
-            var s = Matrix4x4.Scale(new Vector3(-1, -1, 1));
+            var s = Matrix4x4.Scale(new Vector3(flipX ? -1 : 1, -1, 1)); 
             var rotationUnity = s * r * s;
 
             var positionOpenCv = new Vector3(
@@ -383,8 +411,49 @@ namespace ShardMotion
     
         void UpdatePreviewTexture()
         {
+            using var display = new Mat();
+    
+            switch (debugView)
+            {
+                case DebugView.Grayscale:
+                    using (var gray = new Mat())
+                    {
+                        Cv2.CvtColor(frame, gray, ColorConversionCodes.BGR2GRAY);
+                        Cv2.CvtColor(gray, display, ColorConversionCodes.GRAY2BGR);
+                    }
+                    break;
+            
+                case DebugView.AdaptiveThreshold:
+                    using (var gray2 = new Mat())
+                    using (var thresh = new Mat())
+                    {
+                        Cv2.CvtColor(frame, gray2, ColorConversionCodes.BGR2GRAY);
+                        Cv2.AdaptiveThreshold(gray2, thresh, 255,
+                            AdaptiveThresholdTypes.MeanC,
+                            ThresholdTypes.Binary, 
+                            detectorParams.AdaptiveThreshWinSizeMax,
+                            detectorParams.AdaptiveThreshConstant);
+                        Cv2.CvtColor(thresh, display, ColorConversionCodes.GRAY2BGR);
+                    }
+                    break;
+            
+                case DebugView.Edges:
+                    using (var gray3 = new Mat())
+                    using (var edges = new Mat())
+                    {
+                        Cv2.CvtColor(frame, gray3, ColorConversionCodes.BGR2GRAY);
+                        Cv2.Canny(gray3, edges, 50, 150);
+                        Cv2.CvtColor(edges, display, ColorConversionCodes.GRAY2BGR);
+                    }
+                    break;
+            
+                default:
+                    frame.CopyTo(display);
+                    break;
+            }
+    
             using var rgba = new Mat();
-            Cv2.CvtColor(frame, rgba, ColorConversionCodes.BGR2RGBA);
+            Cv2.CvtColor(display, rgba, ColorConversionCodes.BGR2RGBA);
             tex.LoadRawTextureData(rgba.Data, (int)(rgba.Total() * rgba.ElemSize()));
             tex.Apply();
         }
@@ -413,6 +482,21 @@ namespace ShardMotion
             lastPose = p;
             return p;
         }
+
+        public Pose Update(Vector3 position, Quaternion rotation)
+        {
+            if (!initialized)
+            {
+                lastPose = new Pose(position, rotation); 
+                initialized = true; 
+                return lastPose;
+            }
+            if (float.IsNaN(position.x) || float.IsNaN(rotation.x)) return lastPose; 
+            Vector3 smootherPos = Vector3.Lerp(lastPose.position, position, positionSmoothing);
+            Quaternion smoothedRot = Quaternion.Slerp(lastPose.rotation, rotation, rotationSmoothing);
+            lastPose = new Pose(smootherPos, smoothedRot);
+            return lastPose;
+        }
     }
 
 #if UNITY_EDITOR
@@ -420,9 +504,38 @@ namespace ShardMotion
     public class TrackingCameraEditor : Editor
     {
         private bool showPreview = true;
+        
+        private Texture2D _header;
+
+        private Texture2D Header
+        {
+            get
+            {
+                if (_header == null)
+                    _header = AssetDatabase.LoadAssetAtPath<Texture2D>(
+                        "Assets/ShardMotion/Editor/Resources/header.png");
+                return _header;
+            }
+        }
+        
         public override void OnInspectorGUI()
         {
             var script = (TrackingCamera)target;
+            
+            if (Header != null)
+            {
+                float aspect = (float)Header.width / Header.height;
+                float width  = EditorGUIUtility.currentViewWidth - 20f;
+                float height = width / aspect;
+                height = Mathf.Min(height, 80f);
+                width  = height * aspect;
+
+                Rect logoRect = GUILayoutUtility.GetRect(width, height);
+                logoRect.x = (EditorGUIUtility.currentViewWidth - width) * 0.5f;
+                logoRect.width = width;
+                GUI.DrawTexture(logoRect, Header, ScaleMode.ScaleToFit, true);
+                GUILayout.Space(8);
+            }
         
             EditorGUILayout.BeginHorizontal();
             GUILayout.FlexibleSpace();
@@ -444,27 +557,34 @@ namespace ShardMotion
             script.resolutionIndex = EditorGUILayout.Popup("Resolution", script.resolutionIndex, TrackingCamera.ResolutionOptions);
             script.fpsIndex = EditorGUILayout.Popup("FPS", script.fpsIndex, TrackingCamera.FpsOptions);
             script.startAutomatically = EditorGUILayout.Toggle("Start Automatically", script.startAutomatically);
+            script.delay = EditorGUILayout.FloatField("Delay", script.delay);
+            script.flipX = EditorGUILayout.Toggle("Flip X", script.flipX);
 
             GUILayout.Space(8);
-        
-            EditorGUILayout.BeginHorizontal();
-            GUILayout.Label("Preview");
-            GUILayout.FlexibleSpace();
-            var eyeIcon = showPreview 
-                ? EditorGUIUtility.IconContent("d_scenevis_visible_hover") 
-                : EditorGUIUtility.IconContent("d_scenevis_hidden_hover");
-            if (GUILayout.Button(eyeIcon, GUILayout.Width(28), GUILayout.Height(18)))
-                showPreview = !showPreview;
-            EditorGUILayout.EndHorizontal();
 
-            if (showPreview && script.tex) {
-                float aspect = (float)script.tex.width / script.tex.height;
-                Rect r = GUILayoutUtility.GetRect(Screen.width, Screen.width / aspect);
-                Matrix4x4 m = GUI.matrix;
-                GUIUtility.ScaleAroundPivot(new Vector2(1, -1), new Vector2(r.x + r.width * 0.5f, r.y + r.height * 0.5f));
-                GUI.DrawTexture(r, script.tex, ScaleMode.ScaleToFit);
-                GUI.matrix = m;
-                Repaint();
+            if (EditorApplication.isPlaying)
+            {
+                EditorGUILayout.BeginHorizontal();
+                GUILayout.Label("Preview");
+                script.debugView = (TrackingCamera.DebugView)EditorGUILayout.EnumPopup("", script.debugView);
+                GUILayout.FlexibleSpace();
+                var eyeIcon = showPreview 
+                    ? EditorGUIUtility.IconContent("d_scenevis_visible_hover") 
+                    : EditorGUIUtility.IconContent("d_scenevis_hidden_hover");
+                if (GUILayout.Button(eyeIcon, GUILayout.Width(28), GUILayout.Height(18)))
+                    showPreview = !showPreview;
+                EditorGUILayout.EndHorizontal();
+                
+                
+                if (showPreview && script.tex) {
+                    float aspect = (float)script.tex.width / script.tex.height;
+                    Rect r = GUILayoutUtility.GetRect(Screen.width, Screen.width / aspect);
+                    Matrix4x4 m = GUI.matrix;
+                    GUIUtility.ScaleAroundPivot(new Vector2(1, -1), new Vector2(r.x + r.width * 0.5f, r.y + r.height * 0.5f));
+                    GUI.DrawTexture(r, script.tex, ScaleMode.ScaleToFit);
+                    GUI.matrix = m;
+                    Repaint();
+                }
             }
 
             GUILayout.Space(8);
@@ -473,14 +593,17 @@ namespace ShardMotion
                 CamCalibEditor.Open(script);
 
             GUILayout.Space(8);
-        
-            if (!script.isTracking)
+
+            if (EditorApplication.isPlaying)
             {
-                if (GUILayout.Button(new GUIContent("  Manual START", EditorGUIUtility.IconContent("PlayButton").image), ButtonStyle())) script.StartTracking(script.sel);
-            }
-            else
-            {
-                if (GUILayout.Button(new GUIContent("  Manual STOP", EditorGUIUtility.IconContent("PreMatQuad").image), ButtonStyle())) script.StopTracking();
+                if (!script.isTracking)
+                {
+                    if (GUILayout.Button(new GUIContent("  Manual START", EditorGUIUtility.IconContent("PlayButton").image), ButtonStyle())) script.StartTracking(script.sel);
+                }
+                else
+                {
+                    if (GUILayout.Button(new GUIContent("  Manual STOP", EditorGUIUtility.IconContent("PreMatQuad").image), ButtonStyle())) script.StopTracking();
+                }
             }
 
         }

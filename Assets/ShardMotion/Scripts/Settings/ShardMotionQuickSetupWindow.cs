@@ -8,7 +8,7 @@ namespace ShardMotion.Settings
     public class ShardMotionQuickSetupWindow : EditorWindow
     {
         const string SettingsPath = "Assets/Resources/ShardMotionGlobalSettings.asset";
-        const string HeaderImagePath = "Assets/ShardMotion/Editor/Resources/ShardMotionHeader.png";
+        const string HeaderImagePath = "Assets/ShardMotion/Editor/Resources/Header.png";
 
         const float Margin = 16f;
         const float RowHeight = 50f;
@@ -91,17 +91,6 @@ namespace ShardMotion.Settings
             }
 
             DrawStatusIcon(statusRect, hasSettings);
-            y += RowHeight + RowSpacing;
-
-            GUI.Label(new Rect(x, y, w, LabelHeight), "Quick setup motion tracking in current scene", LabelStyle());
-            y += LabelHeight;
-
-            Rect placeholderBtn = new Rect(x, y, btnWidth, RowHeight);
-            var placeholderIcon = EditorGUIUtility.IconContent("d_CustomTool");
-            var placeholderLabel = new GUIContent("  Setup", placeholderIcon.image);
-            if (GUI.Button(placeholderBtn, placeholderLabel, RowButtonStyle()))
-            {
-            }
         }
 
         static void CreateGlobalSettings()

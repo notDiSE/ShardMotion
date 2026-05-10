@@ -7,6 +7,9 @@ using UnityEngine.Playables;
 
 namespace ShardMotion.Animation
 {
+    [Icon("Assets/ShardMotion/Editor/Resources/icon.png")]
+    [AddComponentMenu("ShardMotion/Record")]
+    [RequireComponent(typeof(Animator))]
     public class Record : MonoBehaviour
     {
     #if UNITY_EDITOR
@@ -172,6 +175,19 @@ namespace ShardMotion.Animation
     public class RecordEditor : Editor
     {
         Record targetScript;
+        
+        private Texture2D _header;
+
+        private Texture2D Header
+        {
+            get
+            {
+                if (_header == null)
+                    _header = AssetDatabase.LoadAssetAtPath<Texture2D>(
+                        "Assets/ShardMotion/Editor/Resources/header.png");
+                return _header;
+            }
+        }
 
         public void Awake()
         {
@@ -180,32 +196,53 @@ namespace ShardMotion.Animation
 
         public override void OnInspectorGUI()
         {
+            if (Header != null)
+            {
+                float aspect = (float)Header.width / Header.height;
+                float width  = EditorGUIUtility.currentViewWidth - 20f;
+                float height = width / aspect;
+                height = Mathf.Min(height, 80f);
+                width  = height * aspect;
+
+                Rect logoRect = GUILayoutUtility.GetRect(width, height);
+                logoRect.x = (EditorGUIUtility.currentViewWidth - width) * 0.5f;
+                logoRect.width = width;
+                GUI.DrawTexture(logoRect, Header, ScaleMode.ScaleToFit, true);
+                GUILayout.Space(8);
+            }
+            
+            targetScript.fps = EditorGUILayout.IntField("FPS", targetScript.fps);
             if (!targetScript.recording)
             {
-                if (GUILayout.Button("Record"))
-                {
+                if (GUILayout.Button(new GUIContent("  Record", EditorGUIUtility.IconContent("Record Off").image), ButtonStyle()))
                     targetScript.StartRecording();
-                }
 
                 if (!targetScript.playback)
                 {
-                    if (GUILayout.Button("Load & Playback"))
+                    if (GUILayout.Button(new GUIContent("  Load & Playback", EditorGUIUtility.IconContent("PlayButton").image), ButtonStyle()))
                         targetScript.LoadAndPlayRecording();
                 }
                 else
                 {
-                    if (GUILayout.Button("Stop Playback"))
+                    if (GUILayout.Button(new GUIContent("  Stop Playback", EditorGUIUtility.IconContent("PreMatQuad").image), ButtonStyle()))
                         targetScript.StopPlayingRecording();
                 }
             }
             else
             {
-                if (GUILayout.Button("Stop Recording"))
-                {
+                if (GUILayout.Button(new GUIContent("  Stop Recording", EditorGUIUtility.IconContent("Record On").image), ButtonStyle()))
                     targetScript.StopRecording();
-                }
             }
-            base.OnInspectorGUI();
+        }
+        
+        GUIStyle ButtonStyle()
+        {
+            var s = new GUIStyle(GUI.skin.button);
+            s.fixedHeight = 60;
+            s.fontSize = 14;
+            s.fontStyle = FontStyle.Bold;
+            s.border = new RectOffset(8, 8, 8, 8);
+            return s;
         }
     }
 #endif

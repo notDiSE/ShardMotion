@@ -13,5 +13,5 @@ MonoBehaviour:
   m_Name: ShardMotionGlobalSettings
   m_EditorClassIdentifier: ShardMotion::ShardMotionSettings
   dictionary: 0
-  positionSmoothing: 0.25
-  rotationSmoothing: 0.25
+  positionSmoothing: 0.1
+  rotationSmoothing: 0.1

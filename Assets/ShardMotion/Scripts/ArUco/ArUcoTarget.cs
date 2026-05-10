@@ -1,7 +1,12 @@
+using ShardMotion;
+using UnityEditor;
 using UnityEngine;
+using UnityEngine.UIElements;
 
 namespace ShardMotion
 {
+    [Icon("Assets/ShardMotion/Editor/Resources/icon.png")]
+    [AddComponentMenu("ShardMotion/ArUcoTarget")]
     public class ArUcoTarget : MonoBehaviour
     {
         public bool tracked = false;
@@ -9,15 +14,22 @@ namespace ShardMotion
         public float markerSize = 0.08f;
         public Vector3 rotationOffset = Vector3.zero;
         public Vector3 positionOffset;
+        public bool autoRegister = false;
     
         public float gizmoArrowLength = 0.12f;
         public Color gizmoColor = new Color(1f, 0.2f, 0.2f, 1f);
-    
-        //void OnEnable() => ArUcoRegistry.Register(this);
+        public bool drawUpArrow = true;
+        public bool drawForwardArrow = true;
+
+        void OnEnable()
+        {
+            if (autoRegister) ArUcoRegistry.Register(this);
+        }
         void OnDisable() => ArUcoRegistry.Unregister(this);
-    
+        
         public (Vector3 pos, Quaternion rot) CorrectedPose(Vector3 rawPos, Quaternion rawRot)
         {
+            
             var rot = rawRot * Quaternion.Euler(rotationOffset);
             var pos = rawPos + rot * positionOffset;
             return (pos, rot);
@@ -40,7 +52,7 @@ namespace ShardMotion
     
     
 #if UNITY_EDITOR
-        void OnDrawGizmosSelected()
+        void OnDrawGizmos()
         {
             var (markerPos, markerRot) = InverseMarkerPose();
 
@@ -59,12 +71,25 @@ namespace ShardMotion
                 : gizmoColor;
             UnityEditor.Handles.DrawAAPolyLine(3f, p0, p1, p2, p3, p0);
 
-            UnityEditor.Handles.ArrowHandleCap(
-                0, markerPos,
-                Quaternion.LookRotation(f, u),
-                gizmoArrowLength,
-                EventType.Repaint
-            );
+            if (drawForwardArrow)
+            {
+                UnityEditor.Handles.ArrowHandleCap(
+                    0, markerPos,
+                    Quaternion.LookRotation(f, u),
+                    gizmoArrowLength,
+                    EventType.Repaint
+                );
+            }
+
+            if (drawUpArrow)
+            {
+                UnityEditor.Handles.ArrowHandleCap(
+                    0, markerPos,
+                    Quaternion.LookRotation(-u, f),
+                    gizmoArrowLength/2,
+                    EventType.Repaint
+                );
+            }
 
             UnityEditor.Handles.Label(
                 markerPos,
@@ -74,3 +99,47 @@ namespace ShardMotion
 #endif
     }
 }
+
+#if UNITY_EDITOR
+[CustomEditor(typeof(ArUcoTarget))]
+public class ArUcoTargetEditor : Editor
+{
+    ArUcoTarget targetScript;
+    bool gizmoFoldout = false;
+
+    public void Awake()
+    {
+        targetScript = (ArUcoTarget)target;
+    }
+
+    public override void OnInspectorGUI()
+    {
+        serializedObject.Update();
+        
+        Rect lineRect = GUILayoutUtility.GetRect(0, 3, GUILayout.ExpandWidth(true));
+        EditorGUI.DrawRect(lineRect, targetScript.gizmoColor);
+        EditorGUILayout.Space(4);
+
+        EditorGUILayout.PropertyField(serializedObject.FindProperty("tracked"));
+        EditorGUILayout.PropertyField(serializedObject.FindProperty("markerId"));
+        EditorGUILayout.PropertyField(serializedObject.FindProperty("markerSize"));
+        EditorGUILayout.PropertyField(serializedObject.FindProperty("rotationOffset"));
+        EditorGUILayout.PropertyField(serializedObject.FindProperty("positionOffset"));
+        EditorGUILayout.PropertyField(serializedObject.FindProperty("autoRegister"));
+
+        EditorGUILayout.Space();
+        gizmoFoldout = EditorGUILayout.Foldout(gizmoFoldout, "Gizmo Settings", true);
+        if (gizmoFoldout)
+        {
+            EditorGUI.indentLevel++;
+            EditorGUILayout.PropertyField(serializedObject.FindProperty("gizmoArrowLength"));
+            EditorGUILayout.PropertyField(serializedObject.FindProperty("gizmoColor"));
+            EditorGUILayout.PropertyField(serializedObject.FindProperty("drawUpArrow"));
+            EditorGUILayout.PropertyField(serializedObject.FindProperty("drawForwardArrow"));
+            EditorGUI.indentLevel--;
+        }
+
+        serializedObject.ApplyModifiedProperties();
+    }
+}
+#endif

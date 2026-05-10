@@ -43,8 +43,8 @@ namespace ShardMotion.Calibration
                     if (points.TryGetValue(bestRecord.Target, out GameObject inversePoint) &&
                         calibratedPoints.TryGetValue(cam, out GameObject calibratedPoint))
                     {
-                        //Quaternion forwardRotation = Quaternion.Euler(bestRecord.Target.rotationOffset);
-                        Quaternion forwardRotation = Quaternion.Inverse(Quaternion.Euler(bestRecord.Target.rotationOffset)) * Quaternion.Euler(0, 0, 180);
+                        //Quaternion forwardRotation = Quaternion.Euler(bestRecord.Target.rotationOffset) * Quaternion.Euler(0, 0, 180) ;
+                        Quaternion forwardRotation = Quaternion.Inverse(Quaternion.Euler(bestRecord.Target.rotationOffset));
                     
                         var pos = forwardRotation * -bestRecord.Target.positionOffset;
                         cam.transform.SetPositionAndRotation(pos, forwardRotation);
@@ -78,7 +78,7 @@ namespace ShardMotion.Calibration
                             );
                         }
 
-                        //cam.calibratedValues++;
+                        cam.calibratedValues++;
 
                         float baseProgress = Mathf.Clamp01(cam.calibratedValues / 100f) * 0.8f;
                         float progress = baseProgress;
@@ -202,7 +202,7 @@ namespace ShardMotion.Calibration
             ArUcoTarget forward = go.AddComponent<ArUcoTarget>();
             forward.markerId = calibrationDevice.forwardID;
             forward.markerSize = calibrationDevice.codeSize;
-            forward.rotationOffset = new Vector3(0, 0, 0);
+            forward.rotationOffset = new Vector3(0, 0, 180);
             forward.positionOffset = new Vector3(0, 0, -calibrationDevice.cubeSize/2);
             //forward.Reregister();
             ArUcoRegistry.Register(forward);
@@ -212,7 +212,7 @@ namespace ShardMotion.Calibration
             ArUcoTarget right = go.AddComponent<ArUcoTarget>();
             right.markerId = calibrationDevice.rightID;
             right.markerSize = calibrationDevice.codeSize;
-            right.rotationOffset = new Vector3(0, -90, 0);
+            right.rotationOffset = new Vector3(180, -90, 0);
             right.positionOffset = new Vector3(-calibrationDevice.cubeSize/2,0,0);
             //right.Reregister();
             ArUcoRegistry.Register(right);
@@ -222,7 +222,7 @@ namespace ShardMotion.Calibration
             ArUcoTarget backwards = go.AddComponent<ArUcoTarget>();
             backwards.markerId = calibrationDevice.backwardID;
             backwards.markerSize = calibrationDevice.codeSize;
-            backwards.rotationOffset = new Vector3(0, 180, 0);
+            backwards.rotationOffset = new Vector3(0, 180, 180);
             backwards.positionOffset = new Vector3(0, 0, calibrationDevice.cubeSize/2);
             //backwards.Reregister();
             ArUcoRegistry.Register(backwards);
@@ -232,7 +232,7 @@ namespace ShardMotion.Calibration
             ArUcoTarget left = go.AddComponent<ArUcoTarget>();
             left.markerId = calibrationDevice.leftID;
             left.markerSize = calibrationDevice.codeSize;
-            left.rotationOffset = new Vector3(0, 90, 0);
+            left.rotationOffset = new Vector3(180, 90, 0);
             left.positionOffset = new Vector3(calibrationDevice.cubeSize/2,0,0);
             //left.Reregister();
             ArUcoRegistry.Register(left);
