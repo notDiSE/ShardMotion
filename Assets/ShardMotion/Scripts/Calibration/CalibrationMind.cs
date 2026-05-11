@@ -4,24 +4,36 @@ using UnityEngine;
 
 namespace ShardMotion.Calibration
 {
+    /// <summary>
+    /// Calibration mind handles the position calibration of Targets
+    /// </summary>
     public static class CalibrationMind
     {
-
+        // each camera gets inverse point and calibrated point
         private static Dictionary<TrackingCamera, Dictionary<ArUcoTarget, GameObject>> inversePoints = new Dictionary<TrackingCamera, Dictionary<ArUcoTarget, GameObject>>();
         private static Dictionary<TrackingCamera, GameObject> calibratedPoints = new Dictionary<TrackingCamera, GameObject>();
         private static GameObject root;
 
+        /// <summary>
+        /// Data from Tracking Camera
+        /// </summary>
+        /// <param name="cam"> Reference to <see cref="TrackingCamera"/></param>
+        /// <param name="records">List of records of markers from this frame</param>
         public static void Calibrate(TrackingCamera cam, List<TrackingCamera.TrackingRecord> records)
         {
+            // Add calibraeted point for this camera if it doesnt exist
             if (!calibratedPoints.ContainsKey(cam))
             {
                 calibratedPoints.Add(cam, new GameObject("Calibrated point for " + cam.name));
             }
 
+            // Add inverse point for this camera if it doesnt exist
             if (!inversePoints.ContainsKey(cam))
             {
                 inversePoints.Add(cam, new Dictionary<ArUcoTarget, GameObject>());
             }
+            
+            // Only keeps the best record for this camera (best dot)
             TrackingCamera.TrackingRecord bestRecord = null;
             foreach (TrackingCamera.TrackingRecord record in records)
             {
@@ -30,8 +42,10 @@ namespace ShardMotion.Calibration
             } 
             //if(bestRecord != null) cam.transform.SetPositionAndRotation(-bestRecord.Pos, Quaternion.identity);
             //if(bestRecord != null) cam.transform.SetPositionAndRotation(Vector3.zero, Quaternion.Inverse( ArUcoTarget.ToForwardRotation(bestRecord.Target.forwardAxis)));
+            
             if (bestRecord != null)
             {
+                
                 if (inversePoints.TryGetValue(cam, out Dictionary<ArUcoTarget, GameObject> points))
                 {
                     if (!points.ContainsKey(bestRecord.Target))
@@ -39,24 +53,34 @@ namespace ShardMotion.Calibration
                         points.Add(bestRecord.Target, new GameObject("Inverse point for code " + bestRecord.Target.markerId));
                     }
 
-                    if (points.TryGetValue(bestRecord.Target, out GameObject inversePoint) &&
-                        calibratedPoints.TryGetValue(cam, out GameObject calibratedPoint))
+                    if (points.TryGetValue(bestRecord.Target, out GameObject inversePoint) && calibratedPoints.TryGetValue(cam, out GameObject calibratedPoint))
                     {
                         //Quaternion forwardRotation = Quaternion.Euler(bestRecord.Target.rotationOffset) * Quaternion.Euler(0, 0, 180) ;
                         Quaternion forwardRotation = Quaternion.Inverse(Quaternion.Euler(bestRecord.Target.rotationOffset));
                     
+                        // Camera gets set to the position of detected Marker in scene (sor of like inverse projection, we are trying to find, where the marker will be detected now)
                         var pos = forwardRotation * -bestRecord.Target.positionOffset;
                         cam.transform.SetPositionAndRotation(pos, forwardRotation);
 
+                        // inverse point gets set to the position that the marker is detected in
                         inversePoint.transform.SetPositionAndRotation(bestRecord.Pos, bestRecord.Rot);
+                        
+                        //Save the relative pose
                         RelativePose relativePose = RelativePoseMath.Capture(cam.transform, inversePoint.transform);
+                        
+                        // move
                         inversePoint.transform.SetPositionAndRotation(cam.transform.position, cam.transform.rotation);
+                        
+                        // Apply back relative pose
                         RelativePoseMath.Apply(calibratedPoint.transform, inversePoint.transform, relativePose);
 
 
                         var oldPos = cam.calibratedPosAverage;
                         var oldRot = cam.calibratedRotAverage;
 
+                        // Camera gets X ammount of records and makes the average
+                        
+                        // no values recorded before
                         if (cam.calibratedValues == 0)
                         {
                             cam.calibratedPosAverage = calibratedPoint.transform.position;
@@ -65,51 +89,49 @@ namespace ShardMotion.Calibration
                         }
                         else
                         {
-                            cam.calibratedPosAverage =
-                                (cam.calibratedValues * cam.calibratedPosAverage + calibratedPoint.transform.position) /
-                                (cam.calibratedValues + 1);
+                            // Running average position of camera
+                            cam.calibratedPosAverage = (cam.calibratedValues * cam.calibratedPosAverage + calibratedPoint.transform.position) / (cam.calibratedValues + 1);
 
+                            // running average rotation, using slerp for correct values, cannot simpy make averge from rotation
                             float t = 1f / (cam.calibratedValues + 1);
-                            cam.calibratedRotAverage = Quaternion.Slerp(
-                                cam.calibratedRotAverage,
-                                calibratedPoint.transform.rotation,
-                                t
-                            );
+                            cam.calibratedRotAverage = Quaternion.Slerp(cam.calibratedRotAverage, calibratedPoint.transform.rotation, t);
                         }
 
-                        cam.calibratedValues++;
+                        cam.calibratedValues++; // camera gets calibrated values counter up
 
+                        // Calculate progress (first 80% is calculated from number of values)
                         float baseProgress = Mathf.Clamp01(cam.calibratedValues / 100f) * 0.8f;
                         float progress = baseProgress;
 
+                        // if there is more than 100 calibrated values.
                         if (cam.calibratedValues >= 100)
                         {
                             float posEps = 0.0001f;
                             float rotEpsDeg = 0.1f;
 
+                            // measure how much average moved
                             float posErr = Mathf.Sqrt((oldPos - cam.calibratedPosAverage).sqrMagnitude);
                             float rotErr = Quaternion.Angle(oldRot, cam.calibratedRotAverage);
 
+                            // normalize using tolerance
                             float posNorm = posErr / posEps;
                             float rotNorm = rotErr / rotEpsDeg;
 
+                            // progress calculation (last 20% is calculated from how close the worst value is from treshold)
                             float worstNorm = Mathf.Max(posNorm, rotNorm);
-
                             float stability01 = 1f - Mathf.Clamp01(worstNorm);
                             float tail = 0.2f * stability01;
-
                             progress = 0.8f + tail;
-
-                            bool posClose = posErr < posEps;
-                            bool rotClose = rotErr < rotEpsDeg;
-
-                            if (posClose && rotClose)
+                            
+                            // if pos and rot changes less, than treshold
+                            if (posErr < posEps && posErr < posEps)
                             {
-                                SaveCalibration(cam);
+                                SaveCalibration(cam); // save the calibration
                                 progress = 1f;
                             }
                         }
 
+                        // if there is more than 1000 recorded values and still cannot make average, the calibraiton failed
                         if (cam.calibratedValues >= 1000)
                         {
                             cam.calibrationState = TrackingCamera.CalibrationState.Failed;
@@ -120,38 +142,18 @@ namespace ShardMotion.Calibration
 
                     }
                 }
-                /*
-            Quaternion forwardRotation = ArUcoTarget.ToForwardRotation(bestRecord.Target.forwardAxis);
-            if(bestRecord.Target.forwardAxis == MarkerAxis.X_NEG || bestRecord.Target.forwardAxis == MarkerAxis.X_POS) forwardRotation *= Quaternion.Euler(0, 180, 0);
-            var pos =  forwardRotation * -bestRecord.Target.positionOffset;
-            cam.transform.SetPositionAndRotation(pos, forwardRotation);
                 
-            nahradnikod.transform.SetPositionAndRotation(bestRecord.Pos, bestRecord.Rot);
-            RelativePose relativePose = RelativePoseMath.Capture(cam.transform, nahradnikod.transform);
-            nahradnikod.transform.SetPositionAndRotation(cam.transform.position, cam.transform.rotation);
-            RelativePoseMath.Apply(nahradnikamera.transform, nahradnikod.transform, relativePose);
-            */
-                //Quaternion rawMarkerRot = ArUcoTarget.ToForwardRotation(bestRecord.Target.forwardAxis) * bestRecord.Rot;
-
-                //Vector3 forward = rawMarkerRot * Vector3.forward;
-                //Vector3 up = rawMarkerRot * Vector3.up;
-
-                //Quaternion invRot = Quaternion.Inverse() * quaternion.Euler(cam.calibrationDevice.UpVector);
-
-                //Vector3 localPos = bestRecord.Pos;
-
-                //Vector3 pos = -(invRot * localPos);
-
-                //Quaternion rot = Quaternion.Euler(0, 180, 0);// * ArUcoTarget.ToForwardRotation(bestRecord.Target.forwardAxis);
-
-                //hubu.transform.SetPositionAndRotation(bestRecord.Pos,  rot);
-
             }
         }
     
 
+        /// <summary>
+        /// Saves calibration
+        /// </summary>
+        /// <param name="cam">for this camera</param>
         public static void SaveCalibration(TrackingCamera cam)
         {
+            // sets the position of the cam to the calibrated point position and rotation
             if (calibratedPoints.TryGetValue(cam, out GameObject calibratedPoint))
             {
                 cam.calibrationState = TrackingCamera.CalibrationState.Calibrated;
@@ -161,9 +163,13 @@ namespace ShardMotion.Calibration
             }
         }
 
+        /// <summary>
+        /// Destroys created calibration device
+        /// </summary>
         public static void Cleanup()
         {
         
+            // Inverse points and calibrated points get cleared
             foreach (KeyValuePair<TrackingCamera, Dictionary<ArUcoTarget, GameObject>> point in inversePoints)
             {
                 foreach (KeyValuePair<ArUcoTarget, GameObject> pair in point.Value)
@@ -179,6 +185,8 @@ namespace ShardMotion.Calibration
         
             inversePoints.Clear();
             calibratedPoints.Clear();
+            
+            // each target in calibrated device is unregistred
             foreach (var target in root.GetComponentsInChildren(typeof(ArUcoTarget)))
             {
                 ArUcoRegistry.Unregister(target as ArUcoTarget);
@@ -186,10 +194,12 @@ namespace ShardMotion.Calibration
             Object.Destroy(root);
         }
 
+        /// <summary>
+        /// Created instance of virtual calibration device from parameters
+        /// </summary>
+        /// <param name="calibrationDevice">Referecne to calibration device, that it will be created from</param>
         public static void CreateTarget(CalibrationDevice calibrationDevice)
         {
-            //nahradnikamera = new GameObject("NahradniKamera");
-            //nahradnikod = new GameObject("Nahradnikod");
         
             inversePoints.Clear();
             calibratedPoints.Clear();

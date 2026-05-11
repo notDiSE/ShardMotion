@@ -24,8 +24,12 @@ namespace ShardMotion.Calibration
         private bool processed = false;
         private int successCount = 0;
     
+        // chessboard properties
         int boardW = 7;
         int boardH = 5;
+        float squareSizeMeters = 0.03f;
+        
+        // calculated 
         private double rms;
         private double fx, fy;
         private double cx, cy;
@@ -42,7 +46,14 @@ namespace ShardMotion.Calibration
             window.trackingCamera = camera;
             window.Show();
             window.captures.Clear();
-            window.webCamTexture = new WebCamTexture(WebCamTexture.devices[window.trackingCamera.sel].name, 640, 480, 60);
+            
+            // parse selected resolution
+            var resParts = TrackingCamera.ResolutionOptions[window.trackingCamera.resolutionIndex].Split('x');
+            int w = int.Parse(resParts[0]);
+            int h = int.Parse(resParts[1]);
+            
+            // Start webcam
+            window.webCamTexture = new WebCamTexture(WebCamTexture.devices[window.trackingCamera.sel].name, w, h, 60);
             window.webCamTexture.Play();
             window.processed = false;
         }
@@ -54,11 +65,13 @@ namespace ShardMotion.Calibration
 
             if (tex != null)
             {
+                // draw camera preview
                 float aspect = (float)tex.width / tex.height;
                 float h = previewWidth / aspect;
                 float y = (position.height - h) * 0.5f;
                 GUI.DrawTexture(new Rect(0, y, previewWidth, h), tex, ScaleMode.ScaleToFit);
             
+                // Draw overlay text insctructions
                 GUIStyle overlayText = new GUIStyle(EditorStyles.boldLabel);
                 overlayText.fontSize = 32;
                 overlayText.normal.textColor = Color.white;
@@ -66,8 +79,9 @@ namespace ShardMotion.Calibration
                 GUI.Label(new Rect(0, 0, previewWidth, position.height), webcamText, overlayText);
             }
 
+            // side panel
             GUILayout.BeginArea(new Rect(previewWidth, 0, sideWidth, position.height));
-
+            
             GUILayout.Space(16);
             GUILayout.BeginHorizontal();
             GUILayout.Space(16);
@@ -75,23 +89,23 @@ namespace ShardMotion.Calibration
 
             captureMode = EditorGUILayout.Popup(captureMode, captureModes);
             GUILayout.Space(8);
-        
+            
+            // Chessboard definition
             boardW = EditorGUILayout.IntField("Corners X", boardW);
             boardH = EditorGUILayout.IntField("Corners Y", boardH);
+            squareSizeMeters = EditorGUILayout.FloatField("One Square Size size", squareSizeMeters);
         
             GUILayout.Space(8);
 
+            // Capture buttons
             bool isAuto = captureMode == 0;
             string btnLabel = isAuto
                 ? (capturing ? "  Stop Capture" : "  Capture")
                 : "  Capture";
 
-            GUIContent captureContent = new GUIContent(
-                btnLabel,
-                EditorGUIUtility.IconContent(capturing ? "d_PauseButton" : "d_Record Off").image
-            );
+            GUIContent captureContent = new GUIContent(btnLabel, EditorGUIUtility.IconContent(capturing ? "d_PauseButton" : "d_Record Off").image);
 
-            if (GUILayout.Button(captureContent, CaptureStyle()))
+            if (GUILayout.Button(captureContent, ButtonStyle()))
             {
                 if (isAuto)
                 {
@@ -112,19 +126,21 @@ namespace ShardMotion.Calibration
         
             GUILayout.Space(8);
         
+            
+            // Process button
             GUIContent processContent = new GUIContent(
                 "  Process",
                 EditorGUIUtility.IconContent("d_Play").image
             );
         
             if (captures.Count < 5) EditorGUI.BeginDisabledGroup(true);
-            if (GUILayout.Button(processContent, CaptureStyle()))
+            if (GUILayout.Button(processContent, ButtonStyle()))
             {
                 Process();
             }
             EditorGUI.EndDisabledGroup();
 
-        
+            // processed text
             if (processed)
             {
                 GUILayout.Label($"Chessboard found: {successCount}/{captures.Count}");
@@ -145,7 +161,7 @@ namespace ShardMotion.Calibration
             GUILayout.BeginVertical();
 
             if (!processed) EditorGUI.BeginDisabledGroup(true);
-            if (GUILayout.Button(new GUIContent("  Save", EditorGUIUtility.IconContent("d_SaveAs").image), SaveStyle()))
+            if (GUILayout.Button(new GUIContent("  Save", EditorGUIUtility.IconContent("d_SaveAs").image), ButtonStyle()))
             {
                 Save();
             }
@@ -153,6 +169,7 @@ namespace ShardMotion.Calibration
 
             GUILayout.Space(8);
 
+            // exit button
             if (GUILayout.Button(new GUIContent("  Discard & Close", EditorGUIUtility.IconContent("d_TreeEditor.Trash").image), DiscardStyle()))
                 TryClose();
 
@@ -164,22 +181,13 @@ namespace ShardMotion.Calibration
             GUILayout.EndArea();
         }
 
-        GUIStyle CaptureStyle()
+        // styles
+        GUIStyle ButtonStyle()
         {
             GUIStyle s = new GUIStyle(GUI.skin.button);
             s.fixedHeight = 60;
             s.fontSize = 14;
             s.fontStyle = FontStyle.Bold;
-            s.border = new RectOffset(8, 8, 8, 8);
-            return s;
-        }
-
-        GUIStyle SaveStyle()
-        {
-            GUIStyle s = new GUIStyle(GUI.skin.button);
-            s.fontSize = 14;
-            s.fontStyle = FontStyle.Bold;
-            s.fixedHeight = 60;
             s.border = new RectOffset(8, 8, 8, 8);
             return s;
         }
@@ -194,15 +202,20 @@ namespace ShardMotion.Calibration
             return s;
         }
 
+        /// <summary>
+        /// Takes snapshot of the camera
+        /// </summary>
         void TakePicture()
         {
             Texture2D snapshot = new Texture2D(tex.width, tex.height, tex.format, false);
-            Graphics.CopyTexture(tex, snapshot);
+            Graphics.CopyTexture(tex, snapshot); // copy texture, cannot simply copy reference
             captures.Add(snapshot);
         }
     
+        // Automatic capture loop
         IEnumerator AutomaticCapture()
         {
+            // Change overlay text
             webcamText = "Starting Capture";
             yield return new WaitForSeconds(3);
             while (capturing)
@@ -217,6 +230,7 @@ namespace ShardMotion.Calibration
 
         void TryClose()
         {
+            // Exit confirm dialog
             if (EditorUtility.DisplayDialog(
                     "Discard Calibration",
                     "Close without saving? All unsaved calibration data will be lost.",
@@ -227,8 +241,12 @@ namespace ShardMotion.Calibration
             }
         }
 
+        /// <summary>
+        /// Process the captures snapshots
+        /// </summary>
         void Process()
         {
+            // minimum 5 snapshots
             if (captures.Count < 5)
             {
                 EditorUtility.DisplayDialog("Calibration Failed", 
@@ -237,11 +255,11 @@ namespace ShardMotion.Calibration
             }
         
             Size boardSize = new Size(boardW, boardH);
-            float squareSizeMeters = 0.03f;
         
             var objPoints = new List<Mat>();
             var imgPoints = new List<Mat>();
         
+            // fills out corners of chess boards based on the specified
             Mat objCorners = new Mat(boardSize.Width * boardSize.Height, 1, MatType.CV_32FC3);
             for (int row = 0; row < boardSize.Height; row++)
             for (int col = 0; col < boardSize.Width; col++)
@@ -255,15 +273,19 @@ namespace ShardMotion.Calibration
                 Color32[] pixels = cap.GetPixels32();
                 using Mat rgba = new Mat(cap.height, cap.width, MatType.CV_8UC4, pixels);
                 using Mat bgr = new Mat();
+                // convert from rgb to bgr
                 Cv2.CvtColor(rgba, bgr, ColorConversionCodes.RGBA2BGR);
                 //Cv2.Flip(bgr, bgr, FlipMode.X);
                 using Mat gray = new Mat();
+                // convert to grayscale
                 Cv2.CvtColor(bgr, gray, ColorConversionCodes.BGR2GRAY);
 
                 Point2f[] corners;
+                // Find chessboard corners
                 bool found = Cv2.FindChessboardCorners(gray, boardSize, out corners,
                     ChessboardFlags.AdaptiveThresh | ChessboardFlags.NormalizeImage);
 
+                // if not found on this image continue11
                 if (!found)
                 {
                     //Cv2.ImWrite(Application.temporaryCachePath + $"/calib_fail_{successCount}.bmp", gray);
@@ -281,6 +303,7 @@ namespace ShardMotion.Calibration
                 successCount++;
             }
 
+            // if found at least 5 separate instances of cehssboard being captured
             if (successCount < 5)
             {
                 EditorUtility.DisplayDialog("Calibration Failed",
@@ -293,6 +316,7 @@ namespace ShardMotion.Calibration
             Mat distCoeffs = new Mat(1, 5, MatType.CV_64F, new Scalar(0));
             Mat[] rvecs, tvecs;
 
+            // solve calibration
             rms = Cv2.CalibrateCamera(
                 objPoints, imgPoints, imgSize,
                 cameraMatrix, distCoeffs,
@@ -303,6 +327,8 @@ namespace ShardMotion.Calibration
             Debug.Log($"[CamCalib] RMS reprojection error: {rms:F4}");
             Debug.Log($"[CamCalib] Camera Matrix:\n{cameraMatrix.Dump()}");
             Debug.Log($"[CamCalib] Dist Coeffs: {distCoeffs.Dump()}");
+            
+            // get data from matrix
         
             fx    = cameraMatrix.Get<double>(0, 0);
             gamma = cameraMatrix.Get<double>(0, 1);
@@ -349,6 +375,9 @@ namespace ShardMotion.Calibration
         */
         }
 
+        /// <summary>
+        /// Saves found values
+        /// </summary>
         void Save()
         {
             string cameraName = WebCamTexture.devices[trackingCamera.sel].name;
@@ -375,6 +404,9 @@ namespace ShardMotion.Calibration
             EditorApplication.update += Update;
         }
 
+        /// <summary>
+        /// Refreshes camera preview and forces editor to repaint
+        /// </summary>
         void Update()
         {
             if (webCamTexture != null && webCamTexture.isPlaying)
