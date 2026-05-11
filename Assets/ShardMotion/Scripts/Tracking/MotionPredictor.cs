@@ -2,6 +2,9 @@ using UnityEngine;
 
 namespace ShardMotion
 {
+    /// <summary>
+    /// Unused motion prefictor, that could prove useful to someone. Found not effective enough while testing
+    /// </summary>
     public class MotionPredictor
     {
         public Pose Pose { get; private set; }
@@ -17,6 +20,11 @@ namespace ShardMotion
             this.alphaRot = Mathf.Clamp01(alphaRot);
         }
 
+        /// <summary>
+        /// Pose at given time
+        /// </summary>
+        /// <param name="m">pose</param>
+        /// <param name="t">time</param>
         public void UpdateMeasured(Pose m, float t)
         {
             if (!has)
@@ -42,6 +50,11 @@ namespace ShardMotion
             lastT = t;
         }
 
+        /// <summary>
+        /// Predicts pose at given time
+        /// </summary>
+        /// <param name="t">time</param>
+        /// <returns></returns>
         public Pose Predict(float t)
         {
             if (!has) return Pose;

@@ -5,6 +5,9 @@ using UnityEngine;
 
 namespace ShardMotion
 {
+    /// <summary>
+    /// Camera properties settings, visual interface for DetectorParamsDat
+    /// </summary>
     public class TrackingCameraSettings : EditorWindow
     {
         private TrackingCamera cameraRef;
@@ -22,6 +25,8 @@ namespace ShardMotion
             var p = cameraRef.savedDetectorParams;
 
             EditorGUI.BeginChangeCheck();
+            
+            // Draw of fields for each property in DetectorParamsData
 
             GUILayout.Label("Thresholding", EditorStyles.boldLabel);
             p.AdaptiveThreshWinSizeMin = EditorGUILayout.IntField("Win Size Min", p.AdaptiveThreshWinSizeMin);
@@ -67,7 +72,7 @@ namespace ShardMotion
             GUILayout.Space(8);
             if (GUILayout.Button("Reset to Default"))
             {
-                cameraRef.savedDetectorParams = new DetectorParamsData();
+                cameraRef.savedDetectorParams = new DetectorParamsData(); // makes new instance
                 EditorUtility.SetDirty(cameraRef);
             }
         }

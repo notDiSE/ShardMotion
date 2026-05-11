@@ -4,6 +4,9 @@ using UnityEngine;
 
 namespace ShardMotion
 {
+    /// <summary>
+    /// Used to hold serializable data and for conversion to <see cref="DetectorParameters"/> 
+    /// </summary>
     [Serializable]
     public class DetectorParamsData
     {
@@ -32,6 +35,10 @@ namespace ShardMotion
         public int MinSideLengthCanonicalImg = 32;
         public float MinMarkerLengthRatioOriginalImg = 0;
 
+        /// <summary>
+        /// Converstion
+        /// </summary>
+        /// <returns><see cref="DetectorParameters"/></returns>
         public DetectorParameters ToDetectorParameters()
         {
             var p = new DetectorParameters();
@@ -62,6 +69,10 @@ namespace ShardMotion
             return p;
         }
 
+        /// <summary>
+        /// Copies detector parameters
+        /// </summary>
+        /// <param name="p"> copy from</param>
         public void CopyFrom(DetectorParameters p)
         {
             AdaptiveThreshWinSizeMin = p.AdaptiveThreshWinSizeMin;
