@@ -12,11 +12,11 @@ namespace ShardMotion.Settings
         [Header("General")]
         public PredefinedDictionaryName dictionary;
     
-        [Header("Smoothing")] [Range(0.01f, 1f)]
-        public float positionSmoothing = 0.25f;
+        [Header("Smoothing")] [Range(0.01f, 0.99f)]
+        public float positionSmoothing = 0.75f;
 
         [Range(0.01f, 1f)] 
-        public float rotationSmoothing = 0.25f;
+        public float rotationSmoothing = 0.75f;
 
     }
 }

@@ -22,8 +22,8 @@ namespace ShardMotion.Settings
     
         // static publicaly exposed values from settings 
         public static PredefinedDictionaryName Dictionary => Instance.dictionary;
-        public static float PositionSmoothing => Instance.positionSmoothing;
-        public static float RotationSmoothing => Instance.rotationSmoothing;
+        public static float PositionSmoothing => Mathf.Clamp01(1f -Instance.positionSmoothing); // lerp is opposite
+        public static float RotationSmoothing => Mathf.Clamp01(1f - Instance.rotationSmoothing); // slerp is opposite
     
     }
 }
