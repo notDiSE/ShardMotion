@@ -1,4 +1,5 @@
 #if UNITY_EDITOR
+using System;
 using System.IO;
 using UnityEditor;
 using UnityEngine;
@@ -91,6 +92,16 @@ namespace ShardMotion.Settings
             }
 
             DrawStatusIcon(statusRect, hasSettings);
+        }
+
+        private void OnDestroy()
+        {
+            var settings = AssetDatabase.LoadAssetAtPath<ShardMotionSettings>(SettingsPath);
+            if (settings != null) return;
+            
+            bool confirm = EditorUtility.DisplayDialog("Missing Settings file", "ShardMotion won't work without settings file, are you sure you want to continue?", "Yes", "No");
+
+            if (!confirm) EditorApplication.delayCall += Open;
         }
 
         static void CreateGlobalSettings()
