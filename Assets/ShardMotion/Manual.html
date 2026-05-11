@@ -30,7 +30,8 @@
 </head>
 <body>
 
-<h1>ShardMotion – Manual</h1>
+<img src="Editor/Resources/header.png" alt="Calibration" style="max-width: 100%; margin: 1em 0;" />
+
 <div class="note">ShardMotion is a Unity plugin that tracks the movement of physical objects using printed ArUco markers and one or more webcams. No specialized hardware or external software is required.</div>
 
 <h2>What You Need</h2>
@@ -43,6 +44,8 @@
 <h2>First Launch</h2>
 <div class="note">When you open a Unity project with ShardMotion for the first time, a setup window appears automatically. Click the button to create the plugin's settings file. The plugin will not work without it.</div>
 <p>The setup window can be open at any time using Tools > ShardMotion > Quick Setup</p>
+
+<div class="note">If you have imported some Examples, the plugin might ask for some imports of other packages.</div>
 
 <h2>Basic Setup</h2>
 
@@ -59,7 +62,7 @@
 <p>Add the <code>ArUcoTarget</code> component to the virtual object you want to move.</p>
 <p>Configure it:</p>
 <ul>
-  <li><strong>Marker ID</strong> – the number printed on the physical marker. Must match exactly.</li>
+  <li><strong>Marker ID</strong> – printed marker ID</li>
   <li><strong>Marker Size</strong> – physical size of the marker in meters (e.g. <code>0.05</code> for a 5 cm marker).</li>
   <li><strong>Position Offset</strong> – offset from the object's pivot point if the marker is not centered on the object.</li>
   <li><strong>Rotation Offset</strong> – rotation of the marker relative to the object's orientation.</li>
@@ -76,13 +79,15 @@
 <p>If you are starting things manually:</p>
 <ol>
   <li>Open the Control Panel: <strong>ShardMotion → Control Panel</strong></li>
-  <li>Click <strong>Start All Cameras</strong> (or start individual cameras)</li>
+  <li>Click <strong>Start Tracking</strong> on cameras you want to start. </li>
   <li>Click <strong>Register All Targets</strong></li>
 </ol>
 
 <p>Once running, the <code>TrackingCamera</code> Inspector shows a live preview. Detected markers are highlighted with their ID and orientation arrows.</p>
 
 <h2>Camera Calibration (Recommended)</h2>
+
+<div class="note">Camera calibration needs to be recalculated each time resolution of the camera changes.</div>
 
 <p>Camera calibration improves tracking accuracy by measuring the lens properties of your camera. It only needs to be done once per physical camera.</p>
 
@@ -91,10 +96,15 @@
 <ol>
   <li>In the <code>TrackingCamera</code> Inspector, click <strong>Camera Calibration</strong>.</li>
   <li>A calibration window opens with a live camera preview.</li>
-  <li>Hold a chessboard pattern in front of the camera (included with the plugin). Move it to different positions and angles.</li>
-  <li>Take at least 5 photos using the <strong>Take Snapshot</strong> button. More photos from varied angles = better result.</li>
-  <li>Click <strong>Finish Calibration</strong>. The parameters are saved automatically.</li>
+  <li>Set the checkerboard properties, so they match the real checkerboard. (for example the checkerboard on the photo is X:7 Y:5 - inner corners are counted)</li>
+  <li>Choose manual or automatic capture</li>
+  <li>Hold a chessboard pattern in front of the camera. Move it to different positions and angles.</li>
+  <li>Take at least 5 photos using the <strong>Capture</strong> button. More photos from varied angles = better result.</li>
+  <li>Click <strong>Process</strong>.</li>
+  <li>Click <strong>Save and exit</strong>.</li>
 </ol>
+
+<img src="Manual Resources/calibration.png" alt="Calibration" style="max-width: 100%; margin: 1em 0;" />
 
 <p>You do not need to redo calibration if the camera is moved to a new position.</p>
 
@@ -103,11 +113,13 @@
 <p>Add a <code>TrackingCamera</code> component for each physical camera. When using more than one camera, you must calibrate the spatial positions of the cameras so the plugin knows where they are relative to each other. This is done in Play mode.</p>
 
 <h3>Calibration Cube</h3>
-<p>You need a physical cube with ArUco markers on each of its four sides. You can make one from any rigid material by attaching printed markers. A 3D-printable version is included with the plugin.</p>
+<p>You need a physical cube with ArUco markers on each of its four sides. You can make one from any rigid material by attaching printed markers. A 3D-printable version is included with the plugin — <a href="https://github.com/notDiSE/ShardMotion/tree/main/Printable" target="_blank">download it here</a>.</p>
+
+<img src="Manual Resources/calibration_device.png" alt="Calibration device" style="max-width: 100%; margin: 1em 0;" />
 
 <h3>Setting Up the CalibrationDevice</h3>
 <ol>
-  <li>In your Unity project, create or locate the <code>CalibrationDevice</code> ScriptableObject.</li>
+  <li>In your Unity project, create or locate the <code>CalibrationDevice</code> Using Right click > Create > Shard Motion > Calibration Device</li>
   <li>Set the marker ID for each face of the cube.</li>
   <li>Set <strong>Cube Size</strong> – the physical side length of the cube in meters.</li>
   <li>Set <strong>Marker Size</strong> – the physical size of the markers on the cube in meters.</li>
@@ -117,13 +129,11 @@
 <p>Do this in <strong>Play mode</strong>, after cameras are started.</p>
 <ol>
   <li>Place the calibration cube in the center of the tracking area.</li>
-  <li>Open the Control Panel and select the <code>CalibrationDevice</code> in the designated field.</li>
+  <li>Open the Control Panel (Tools > ShardMotion > ControlPanel) and select the <code>CalibrationDevice</code> in the designated field.</li>
   <li>Click <strong>Start Calibration</strong>.</li>
   <li>Wait for all cameras to show green (calibration successful). Yellow = in progress, red = failed.</li>
   <li>Once all cameras are green, you can remove the cube.</li>
 </ol>
-
-<p>The cube's position becomes the origin point (0, 0, 0) of the tracking space.</p>
 
 <h2>Recording Motion to Animation</h2>
 
@@ -140,8 +150,8 @@
 
 <table>
   <tr><th>Setting</th><th>What it does</th></tr>
-  <tr><td>Dictionary</td><td>The ArUco marker dictionary (determines marker grid size). Must match the markers you have printed. When in doubt, leave the default.</td></tr>
-  <tr><td>Position Smoothing</td><td>Smooths out jitter in position (0–1). Higher = smoother but slower response.</td></tr>
+  <tr><td>Dictionary</td><td>The ArUco marker dictionary (determines marker grid size). Must match the markers you have printed.</tr>
+  <tr><td>Position Smoothing</td><td>Smooths out jitter in position (0–1). Higher value = smoother but slower response.</td></tr>
   <tr><td>Rotation Smoothing</td><td>Same as above, but for rotation.</td></tr>
 </table>
 
