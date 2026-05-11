@@ -69,8 +69,8 @@ namespace ShardMotion
         public float delay = 0; // value of delay in seconds
     
         // Used for searching for saved position and rotation of camera in PlayerPrefs
-        private string SavedPosKey => $"{gameObject.name}_pos";
-        private string SavedRotKey => $"{gameObject.name}_rot";
+        private string SavedPosKey => $"{gameObject.scene.name}_{gameObject.name}_pos";
+        private string SavedRotKey => $"{gameObject.scene.name}_{gameObject.name}_rot";
     
         /// <summary>
         /// Action is invoked when camera starts capturing

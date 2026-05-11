@@ -8,7 +8,7 @@ namespace ShardMotion.Settings
 {
     public class ShardMotionQuickSetupWindow : EditorWindow
     {
-        const string SettingsPath = "Assets/Resources/ShardMotionGlobalSettings.asset";
+        public const string SettingsPath = "Assets/Resources/ShardMotionGlobalSettings.asset";
         const string HeaderImagePath = "Assets/ShardMotion/Editor/Resources/Header.png";
 
         const float Margin = 16f;
