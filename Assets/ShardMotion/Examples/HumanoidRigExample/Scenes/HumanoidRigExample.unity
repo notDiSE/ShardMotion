@@ -160,7 +160,7 @@ Animator:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 106263592}
-  m_Enabled: 1
+  m_Enabled: 0
   m_Avatar: {fileID: 0}
   m_Controller: {fileID: 0}
   m_CullingMode: 0
@@ -904,12 +904,12 @@ GameObject:
   - component: {fileID: 1135064752}
   - component: {fileID: 1135064751}
   m_Layer: 0
-  m_Name: SecondaryCamera
+  m_Name: SecondaryCamera -- can be enabled
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!114 &1135064751
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1731,7 +1731,7 @@ Transform:
 SceneRoots:
   m_ObjectHideFlags: 0
   m_Roots:
-  - {fileID: 1135064755}
   - {fileID: 2009501753}
+  - {fileID: 1135064755}
   - {fileID: 1571481167}
   - {fileID: 106263595}

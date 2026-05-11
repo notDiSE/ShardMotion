@@ -1,18 +1,28 @@
 using System;
 using UnityEngine;
 
-public class SubMarine : MonoBehaviour
+namespace ShardMotion.Examples
 {
-
-    public Action OnCollided;
-    private void LateUpdate()
+    /// <summary>
+    /// Player script
+    /// </summary>
+    public class SubMarine : MonoBehaviour
     {
-        transform.position = new Vector3(transform.position.x, transform.position.y, 0); // limits the balloon movement on z axis. (no depth) 
+
+        public Action OnCollided;
+        private void LateUpdate()
+        {
+            transform.position = new Vector3(transform.position.x, transform.position.y, 0); // limits the subMarine movement on z axis. (no depth) 
+        }
+        
+        /// <summary>
+        /// Collision
+        /// </summary>
+        /// <param name="other"> collider that collided </param>
+        private void OnTriggerEnter(Collider other)
+        {
+            OnCollided?.Invoke(); // call on collided action
+        }
     }
     
-    private void OnTriggerEnter(Collider other)
-    {
-        Debug.Log(other.gameObject.name);
-        OnCollided?.Invoke();
-    }
 }

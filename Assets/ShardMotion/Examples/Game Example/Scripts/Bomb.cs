@@ -1,14 +1,21 @@
 using System;
 using UnityEngine;
 
-public class Bomb : MonoBehaviour
+namespace ShardMotion.Examples
 {
-    public Vector3 direction;
-
-    private void FixedUpdate()
+    /// <summary>
+    /// Script used to move bombs on screen
+    /// </summary>
+    public class Bomb : MonoBehaviour
     {
-        transform.position += direction * Time.deltaTime;
-        
-        if(transform.position.x <= -12) Destroy(gameObject);
+        public Vector3 direction;
+
+        private void FixedUpdate()
+        {
+            transform.position += direction * Time.deltaTime; // time delta time used to make it not frame dependant
+            
+            if(transform.position.x <= -12) Destroy(gameObject); // if the bomb is out fo screen, destroy
+        }
     }
+    
 }
