@@ -1,3 +1,5 @@
+#if UNITY_EDITOR
+
 using UnityEditor;
 using UnityEditor.PackageManager;
 using UnityEditor.PackageManager.Requests;
@@ -54,3 +56,5 @@ namespace ShardMotion.Examples
         }
     }
 }
+
+#endif
