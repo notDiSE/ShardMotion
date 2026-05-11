@@ -5,6 +5,9 @@ using UnityEngine.UIElements;
 
 namespace ShardMotion
 {
+    /// <summary>
+    /// Component used for defining one marker on specific object, multiple instances of this script can be placed on one object.
+    /// </summary>
     [Icon("Assets/ShardMotion/Editor/Resources/icon.png")]
     [AddComponentMenu("ShardMotion/ArUcoTarget")]
     public class ArUcoTarget : MonoBehaviour
@@ -23,15 +26,21 @@ namespace ShardMotion
 
         void OnEnable()
         {
-            if (autoRegister) ArUcoRegistry.Register(this);
+            if (autoRegister) ArUcoRegistry.Register(this); // registered automatically if commanded to
         }
-        void OnDisable() => ArUcoRegistry.Unregister(this);
+        void OnDisable() => ArUcoRegistry.Unregister(this); // unregister
         
+        /// <summary>
+        /// Gets corrected object pose from raw marker position and rotation data
+        /// </summary>
+        /// <param name="rawPos">position of marker</param>
+        /// <param name="rawRot">rotation of marker</param>
+        /// <returns>position and rotation of object</returns>
         public (Vector3 pos, Quaternion rot) CorrectedPose(Vector3 rawPos, Quaternion rawRot)
         {
             
             var rot = rawRot * Quaternion.Euler(rotationOffset);
-            var pos = rawPos + rot * positionOffset;
+            var pos = rawPos + rot * positionOffset; // uses roation to get the position offset correctly
             return (pos, rot);
         }
     
@@ -42,9 +51,10 @@ namespace ShardMotion
     
             transform.SetPositionAndRotation(correctedPos, correctedRot);
         }
-    
-        public (Vector3 markerPos, Quaternion markerRot) InverseMarkerPose()
+
+        private (Vector3 markerPos, Quaternion markerRot) InverseMarkerPose()
         {
+            // returns inverse marker pose from the center of the object, used for visualization 
             var rot = transform.rotation * Quaternion.Inverse(Quaternion.Euler(rotationOffset));
             var pos = transform.position - transform.rotation * positionOffset;
             return (pos, rot);
@@ -56,24 +66,28 @@ namespace ShardMotion
         {
             var (markerPos, markerRot) = InverseMarkerPose();
 
-            var half = markerSize * 0.5f;
+            
+            // marker directions
             var r = markerRot * Vector3.right;
             var u = markerRot * Vector3.up;
             var f = markerRot * Vector3.forward;
 
+            // Get marker corners
+            var half = markerSize * 0.5f;
             var p0 = markerPos + (-r - u) * half;
             var p1 = markerPos + ( r - u) * half;
             var p2 = markerPos + ( r + u) * half;
             var p3 = markerPos + (-r + u) * half;
 
-            UnityEditor.Handles.color = Application.isPlaying
-                ? (tracked ? gizmoColor : Color.grey)
-                : gizmoColor;
-            UnityEditor.Handles.DrawAAPolyLine(3f, p0, p1, p2, p3, p0);
+            // if the application is in playtime, color smybolises it being tracked
+            Handles.color = Application.isPlaying ? (tracked ? gizmoColor : Color.grey) : gizmoColor;
+            
+            Handles.DrawAAPolyLine(3f, p0, p1, p2, p3, p0); // marker is drawn as rectangle
 
             if (drawForwardArrow)
             {
-                UnityEditor.Handles.ArrowHandleCap(
+                // marker forward is drawn
+                Handles.ArrowHandleCap(
                     0, markerPos,
                     Quaternion.LookRotation(f, u),
                     gizmoArrowLength,
@@ -83,7 +97,8 @@ namespace ShardMotion
 
             if (drawUpArrow)
             {
-                UnityEditor.Handles.ArrowHandleCap(
+                // Marker up is drawn
+                Handles.ArrowHandleCap(
                     0, markerPos,
                     Quaternion.LookRotation(-u, f),
                     gizmoArrowLength/2,
@@ -91,10 +106,8 @@ namespace ShardMotion
                 );
             }
 
-            UnityEditor.Handles.Label(
-                markerPos,
-                $"ID: {markerId}"
-            );
+            // Id is drawn on top of marker
+            Handles.Label(markerPos, $"ID: {markerId}");
         }
 #endif
     }

@@ -6,8 +6,7 @@ namespace ShardMotion.Calibration
 {
     public static class CalibrationMind
     {
-        //private static GameObject nahradnikamera;
-        //private static GameObject nahradnikod;
+
         private static Dictionary<TrackingCamera, Dictionary<ArUcoTarget, GameObject>> inversePoints = new Dictionary<TrackingCamera, Dictionary<ArUcoTarget, GameObject>>();
         private static Dictionary<TrackingCamera, GameObject> calibratedPoints = new Dictionary<TrackingCamera, GameObject>();
         private static GameObject root;
