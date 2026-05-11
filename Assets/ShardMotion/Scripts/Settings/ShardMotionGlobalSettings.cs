@@ -3,6 +3,9 @@ using UnityEngine;
 
 namespace ShardMotion.Settings
 {
+    /// <summary>
+    /// Holds settings data
+    /// </summary>
     [CreateAssetMenu(fileName = "ShardMotionGlobalSettings", menuName = "Scriptable Objects/ShardMotionGlobalSettings")]
     public class ShardMotionSettings : ScriptableObject
     {

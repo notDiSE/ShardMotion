@@ -6,6 +6,9 @@ using UnityEngine;
 
 namespace ShardMotion.Settings
 {
+    /// <summary>
+    /// Quick setup window, that gets open when you first enter project
+    /// </summary>
     public class ShardMotionQuickSetupWindow : EditorWindow
     {
         public const string SettingsPath = "Assets/Resources/ShardMotionGlobalSettings.asset";
@@ -33,17 +36,20 @@ namespace ShardMotion.Settings
             float w = position.width - Margin * 2f;
             float x = Margin;
 
+            // draw header
             Rect imgRect = new Rect(x, y, w, 180f);
             var header = AssetDatabase.LoadAssetAtPath<Texture2D>(HeaderImagePath);
             if (header != null)
                 GUI.DrawTexture(imgRect, header, ScaleMode.ScaleToFit);
             y += imgRect.height + Margin;
 
+            // tries to look for settings
             var settings = AssetDatabase.LoadAssetAtPath<ShardMotionSettings>(SettingsPath);
             bool hasSettings = settings != null;
 
             float btnWidth = w - StatusSize - Gap;
 
+            // Open manual button
             GUI.Label(new Rect(x, y, w, LabelHeight), "Read the manual before usage", LabelStyle());
             y += LabelHeight;
 
@@ -56,11 +62,11 @@ namespace ShardMotion.Settings
     
                 if (File.Exists(manualPath))
                 {
-                    Application.OpenURL(new System.Uri(manualPath).AbsoluteUri);
+                    Application.OpenURL(new System.Uri(manualPath).AbsoluteUri); // opens the manual from html file in browser
                 }
                 else
                 {
-                    Debug.LogError("Manual not found at: " + manualPath);
+                    Debug.LogError("Manual not found at: " + manualPath); // should not happen, only if user deleted the manual
                 }
             }
             y += RowHeight + RowSpacing;
@@ -76,10 +82,11 @@ namespace ShardMotion.Settings
                 StatusSize);
 
             var settingsIcon = EditorGUIUtility.IconContent(hasSettings ? "d_SettingsIcon" : "d_CreateAddNew");
-            var settingsLabel = new GUIContent("  " + (hasSettings ? "Open Global Settings" : "Setup Global Settings"), settingsIcon.image);
+            var settingsLabel = new GUIContent("  " + (hasSettings ? "Open Global Settings" : "Setup Global Settings"), settingsIcon.image); // text depending on if settings are present or not
 
             if (GUI.Button(settingsBtn, settingsLabel, RowButtonStyle()))
             {
+                // if has settings, open them in inspector
                 if (hasSettings)
                 {
                     Selection.activeObject = settings;
@@ -87,11 +94,11 @@ namespace ShardMotion.Settings
                 }
                 else
                 {
-                    CreateGlobalSettings();
+                    CreateGlobalSettings(); // if not create them
                 }
             }
 
-            DrawStatusIcon(statusRect, hasSettings);
+            DrawStatusIcon(statusRect, hasSettings); // draw if settings are present or not 
         }
 
         private void OnDestroy()
@@ -104,6 +111,9 @@ namespace ShardMotion.Settings
             if (!confirm) EditorApplication.delayCall += Open;
         }
 
+        /// <summary>
+        /// Creates global settings file
+        /// </summary>
         static void CreateGlobalSettings()
         {
             const string resDir = "Assets/Resources";
@@ -118,6 +128,8 @@ namespace ShardMotion.Settings
             Selection.activeObject = asset;
             EditorGUIUtility.PingObject(asset);
         }
+        
+        // Styles
 
         static void DrawStatusIcon(Rect r, bool on)
         {
