@@ -3,7 +3,9 @@ using System.IO;
 using ShardMotion;
 using UnityEditor;
 using UnityEngine;
-
+/// <summary>
+/// Script used to generate promotional materials, captures both ingame scene and camera image
+/// </summary>
 public class CaptureRealAndScene : MonoBehaviour
 {
     public TrackingCamera trackingCamera;
@@ -42,7 +44,7 @@ public class CaptureRealAndScene : MonoBehaviour
         var rt = new RenderTexture(Screen.width, Screen.height, 24, RenderTextureFormat.ARGB32);
         captureCamera.targetTexture = rt;
         captureCamera.Render();
- 
+        
         RenderTexture.active = rt;
         var virt = new Texture2D(Screen.width, Screen.height, TextureFormat.RGBA32, false);
         virt.ReadPixels(new Rect(0, 0, Screen.width, Screen.height), 0, 0);

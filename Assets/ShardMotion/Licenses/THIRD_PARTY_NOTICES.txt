@@ -10,3 +10,11 @@ Licensed under the Apache License, Version 2.0
 https://opencv.org/license/
 
 Full Apache 2.0 License text: https://www.apache.org/licenses/LICENSE-2.0
+
+Y Bot (Character Model)
+Source: Adobe Mixamo (https://www.mixamo.com)
+License: Adobe Mixamo Terms of Service
+  - Free to use in personal and commercial projects
+  - No attribution required
+  - Cannot be resold as a standalone asset
+  - Full terms: https://www.adobe.com/legal/terms.html
