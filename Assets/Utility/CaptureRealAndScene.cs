@@ -1,3 +1,4 @@
+#if UNITY_EDITOR
 using System.Collections;
 using System.IO;
 using ShardMotion;
@@ -60,3 +61,4 @@ public class CaptureRealAndScene : MonoBehaviour
         Destroy(rt);
     }
 }
+#endif

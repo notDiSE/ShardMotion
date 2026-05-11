@@ -43,7 +43,11 @@ public class ControlPanel : EditorWindow
     {
         if (state == PlayModeStateChange.EnteredPlayMode)
         {
-            if(autoRegisterTargets) RegisterTargets();
+            if (autoRegisterTargets)
+            {
+                FindTargets();
+                RegisterTargets();
+            }
             ResolveFromIds();
             Repaint();
         }
@@ -217,6 +221,17 @@ public class ControlPanel : EditorWindow
             if (expanded[i])
             {
                 EditorGUI.indentLevel++;
+                if (trackingCamera.isTracking)
+                {
+                    if (GUILayout.Button("Stop Tracking")) trackingCamera.StopTracking();
+                    
+                }
+                else
+                {
+                    if (GUILayout.Button("Start Tracking")) trackingCamera.StartTracking(trackingCamera.sel);
+                }
+                
+                
                 if (GUILayout.Button("Save Calibration"))
                 {
                     CalibrationMind.SaveCalibration(trackingCamera);

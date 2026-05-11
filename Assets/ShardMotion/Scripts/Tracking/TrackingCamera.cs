@@ -111,6 +111,7 @@ namespace ShardMotion
 
         void OnEnable()
         {
+            tex = Texture2D.blackTexture;
             ScanCams();
             dictionary = CvAruco.GetPredefinedDictionary(ShardMotionConfig.Dictionary); // pulls the used dictionary type from Settings
             TrackingMind.Register(this); // camera is registered as active
@@ -678,6 +679,7 @@ namespace ShardMotion
         
             // parametrs section
             script.resolutionIndex = EditorGUILayout.Popup("Resolution", script.resolutionIndex, TrackingCamera.ResolutionOptions);
+            GUILayout.Label(      "Camera needs to be calibrated each time resolution is changed", EditorStyles.miniLabel);
             script.fpsIndex = EditorGUILayout.Popup("FPS", script.fpsIndex, TrackingCamera.FpsOptions);
             script.startAutomatically = EditorGUILayout.Toggle("Start Automatically", script.startAutomatically);
             script.delay = EditorGUILayout.FloatField("Delay", script.delay);

@@ -25,7 +25,7 @@ namespace ShardMotion
         }
 
         /// <summary>
-        /// Removes the camera from know cameras
+        /// Removes the camera from known cameras
         /// </summary>
         /// <param name="cam">reference to the <see cref="TrackingCamera"/></param>
         public static void Unregister(TrackingCamera cam)
@@ -74,6 +74,8 @@ namespace ShardMotion
             foreach (TrackingCamera.TrackingRecord record in commitedRecords.OrderBy(r => r.Target.markerId)) // must be looped in same order every frame, hence OrderBy
             {
                 var pose = record.Target.CorrectedPose(record.Pos, record.Rot); // computed object rotation from marker
+
+                record.Target.tracked = true;
 
                 if (perObject.TryGetValue(record.Target.gameObject, out var current)) // if we already have some computed pose for this object
                 {
